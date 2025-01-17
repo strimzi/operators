@@ -656,7 +656,7 @@ public class KafkaBrokerConfigurationBuilderTest {
                 "offsets.topic.replication.factor=3",
                 "transaction.state.log.replication.factor=3",
                 "transaction.state.log.min.isr=2",
-                KafkaCluster.KAFKA_METRIC_REPORTERS_CONFIG_FIELD + "=com.linkedin.kafka.cruisecontrol.metricsreporter.CruiseControlMetricsReporter"));
+                "metric.reporters=com.linkedin.kafka.cruisecontrol.metricsreporter.CruiseControlMetricsReporter"));
     }
 
     @ParallelTest

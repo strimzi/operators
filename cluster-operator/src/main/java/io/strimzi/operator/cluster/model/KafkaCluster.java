@@ -228,6 +228,7 @@ public class KafkaCluster extends AbstractModel implements SupportsMetrics, Supp
     private String clusterId;
     private JmxModel jmx;
     private CruiseControlMetricsReporter ccMetricsReporter;
+    // new MetricsModel metrics
     private MetricsModel jmxExporterMetrics;
     private StrimziMetricsReporterModel strimziMetricsReporter;
     private LoggingModel logging;
@@ -1317,6 +1318,7 @@ public class KafkaCluster extends AbstractModel implements SupportsMetrics, Supp
         }
 
         // Metrics port is enabled on all node types regardless their role
+        // if metrics instance of
         if (jmxExporterMetrics != null && jmxExporterMetrics.isEnabled()) {
             ports.add(ContainerUtils.createContainerPort(MetricsModel.METRICS_PORT_NAME, MetricsModel.METRICS_PORT));
         } else if (strimziMetricsReporter != null && strimziMetricsReporter.isEnabled()) {
