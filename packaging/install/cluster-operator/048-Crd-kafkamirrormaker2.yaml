@@ -668,7 +668,8 @@ spec:
                     type: string
                     enum:
                     - jmxPrometheusExporter
-                    description: Metrics type. Only 'jmxPrometheusExporter' supported currently.
+                    - strimziMetricsReporter
+                    description: Metrics type. The supported types are `jmxPrometheusExporter` and `strimziMetricsReporter`. Type `jmxPrometheusExporter` uses the Prometheus JMX Exporter to expose Kafka JMX metrics in Prometheus format through an HTTP endpoint. Type `strimziMetricsReporter` uses the Strimzi Metrics Reporter to directly expose Kafka metrics in Prometheus format through an HTTP endpoint.
                   valueFrom:
                     type: object
                     properties:
@@ -683,9 +684,17 @@ spec:
                             type: boolean
                         description: Reference to the key in the ConfigMap containing the configuration.
                     description: 'ConfigMap entry where the Prometheus JMX Exporter configuration is stored. '
+                  values:
+                    type: object
+                    properties:
+                      allowList:
+                        type: array
+                        items:
+                          type: string
+                        description: "A comma separated list of regex patterns to specify the metrics to collect. Default: `.*`."
+                    description: Configuration values for the Strimzi Metrics Reporter.
                 required:
                 - type
-                - valueFrom
                 description: Metrics configuration.
               tracing:
                 type: object

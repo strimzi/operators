@@ -433,7 +433,15 @@ For more information about the `livenessProbe` and `readinessProbe` options, see
 == `metricsConfig`
 
 Use the `metricsConfig` property to enable and configure Prometheus metrics.
+Strimzi provides support for Prometheus JMX Exporter and Strimzi Metrics Reporter. Only one of these can be selected at any given time.
 
+When metrics are enabled, they are exposed on port 9404.
+
+When the `metricsConfig` (or deprecated `metrics`) property is not defined in the resource, the Prometheus metrics are disabled.
+
+For more information about setting up and deploying Prometheus and Grafana, see link:{BookURLDeploying}#assembly-metrics-str[Introducing Metrics to Kafka^].
+
+.Using Prometheus JMX Exporter
 The `metricsConfig` property contains a reference to a ConfigMap that has additional configurations for the {JMXExporter}.
 Strimzi supports Prometheus metrics using Prometheus JMX exporter to convert the JMX metrics supported by Apache Kafka to Prometheus metrics.
 
@@ -481,11 +489,32 @@ spec:
     # ...
 ----
 
-When metrics are enabled, they are exposed on port 9404.
+.Using Strimzi Metrics Reporter
+The `metricsConfig` property contains configurations for the {StrimziMetricsReporter}.
+Strimzi supports Prometheus metrics using Strimzi Metrics Reporter to directly expose the metrics provided by Apache Kafka (JMX is not required).
 
-When the `metricsConfig` (or deprecated `metrics`) property is not defined in the resource, the Prometheus metrics are disabled.
+To enable Strimzi Metrics Reporter, set the type to `strimziMetricsReporter`.
+The `allowList` configuration is a comma separated list of regex patterns to filter the metrics that are collected. This defaults to `.*`,  which allows all metrics.
 
-For more information about setting up and deploying Prometheus and Grafana, see link:{BookURLDeploying}#assembly-metrics-str[Introducing Metrics to Kafka^].
+NOTE: Using `strimziMetricsReporter` is only supported in the Kafka component.
+
+.Example metrics configuration for Kafka
+[source,yaml,subs="+attributes"]
+----
+apiVersion: {KafkaApiVersion}
+kind: Kafka
+metadata:
+  name: my-cluster
+spec:
+  kafka:
+    # ...
+    metricsConfig:
+      type: strimziMetricsReporter
+      values:
+        allowList:
+          key: ".*"
+    # ...
+----
 
 [id='con-common-configuration-jvm-{context}']
 == `jvmOptions`

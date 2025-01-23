@@ -28,8 +28,8 @@ if [ "$FIPS_MODE" = "disabled" ]; then
     export KAFKA_OPTS="${KAFKA_OPTS} -Dcom.redhat.fips=false"
 fi
 
-# enabling Prometheus JMX exporter as Java agent
-if [ "$KAFKA_METRICS_ENABLED" = "true" ]; then
+# Enable Prometheus JMX exporter as Java agent
+if [ "$KAFKA_JMX_EXPORTER_ENABLED" = "true" ]; then
   KAFKA_OPTS="${KAFKA_OPTS} -javaagent:$(ls "$JMX_EXPORTER_HOME"/jmx_prometheus_javaagent*.jar)=9404:$KAFKA_HOME/custom-config/metrics-config.json"
   export KAFKA_OPTS
 fi

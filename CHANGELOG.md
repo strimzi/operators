@@ -7,6 +7,8 @@
 * Support for storage class overrides has been removed
 * Added support to configure `dnsPolicy` and `dnsConfig` using the `template` sections.
 * Store Kafka node certificates in separate Secrets, one Secret per pod.
+* Added support for Strimzi Metrics Reporter to the Kafka brokers/controllers components. 
+  Support for Kafka Connect, MirrorMaker2 and Http Bridge will be added subsequently.
 
 ### Major changes, deprecations and removals
 
