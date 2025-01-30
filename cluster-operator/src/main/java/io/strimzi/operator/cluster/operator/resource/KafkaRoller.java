@@ -20,7 +20,6 @@ import io.strimzi.operator.cluster.operator.VertxUtil;
 import io.strimzi.operator.cluster.operator.resource.events.KubernetesRestartEventPublisher;
 import io.strimzi.operator.cluster.operator.resource.kubernetes.PodOperator;
 import io.strimzi.operator.common.AdminClientProvider;
-import io.strimzi.operator.common.Annotations;
 import io.strimzi.operator.common.BackOff;
 import io.strimzi.operator.common.Reconciliation;
 import io.strimzi.operator.common.ReconciliationLogger;
@@ -132,8 +131,7 @@ public class KafkaRoller {
      */
     private Admin brokerAdminClient;
     /**
-     * Admin client used to send requests that are only relevant for KRaft controllers (e.g. describeMetadataQuorum). It is bootstrapped with broker bootstrapService
-     * so that requests are forwarded to the controllers.
+     * Admin client used to send requests that are only relevant for pure controllers. It is bootstrapped with controller nodes that might be rolled.
      */
     private Admin controllerAdminClient;
     private KafkaAgentClient kafkaAgentClient;
@@ -197,7 +195,7 @@ public class KafkaRoller {
         if (this.brokerAdminClient == null) {
             try {
                 this.brokerAdminClient = brokerAdminClient(nodes);
-            } catch (ForceableProblem | FatalProblem e) {
+            } catch (ForceableProblem e) {
                 LOGGER.warnCr(reconciliation, "Failed to create brokerAdminClient.", e);
                 return false;
             }
@@ -209,20 +207,11 @@ public class KafkaRoller {
      * Initializes controllerAdminClient if it has not been initialized yet
      * @return true if the creation of AC succeeded, false otherwise
      */
-    private boolean maybeInitControllerAdminClient(String currentVersion) {
+    private boolean maybeInitControllerAdminClient() {
         if (this.controllerAdminClient == null) {
-            // Prior to 3.9.0, Kafka did not support directly connecting to controllers nodes
-            // via Kafka Admin API when running in KRaft mode.
-            // Therefore, use brokers to initialise adminClient for quorum health check
-            // when the version is older than 3.9.0.
             try {
-                if (KafkaVersion.compareDottedVersions(currentVersion, "3.9.0") >= 0) {
-                    this.controllerAdminClient = controllerAdminClient(nodes);
-                } else {
-                    this.controllerAdminClient = brokerAdminClient(Set.of());
-
-                }
-            } catch (ForceableProblem | FatalProblem e) {
+                this.controllerAdminClient = controllerAdminClient(nodes);
+            } catch (ForceableProblem e) {
                 LOGGER.warnCr(reconciliation, "Failed to create controllerAdminClient.", e);
                 return false;
             }
@@ -317,7 +306,6 @@ public class KafkaRoller {
         boolean podStuck;
         KafkaBrokerConfigurationDiff brokerConfigDiff;
         KafkaBrokerLoggingConfigurationDiff brokerLoggingDiff;
-        KafkaQuorumCheck quorumCheck;
 
         RestartContext(Supplier<BackOff> backOffSupplier) {
             promise = Promise.promise();
@@ -455,19 +443,17 @@ public class KafkaRoller {
         // change and the desired roles still apply.
         boolean isBroker = Labels.booleanLabel(pod, Labels.STRIMZI_BROKER_ROLE_LABEL, nodeRef.broker());
         boolean isController = Labels.booleanLabel(pod, Labels.STRIMZI_CONTROLLER_ROLE_LABEL, nodeRef.controller());
-        // This is relevant when creating admin client for controllers
-        String currentVersion = Annotations.stringAnnotation(pod, KafkaCluster.ANNO_STRIMZI_IO_KAFKA_VERSION, "0.0.0", null);
 
         try {
-            checkIfRestartOrReconfigureRequired(nodeRef, isController, isBroker, restartContext, currentVersion);
+            checkIfRestartOrReconfigureRequired(nodeRef, isController, isBroker, restartContext);
             if (restartContext.forceRestart) {
                 LOGGER.debugCr(reconciliation, "Pod {} can be rolled now", nodeRef);
                 restartAndAwaitReadiness(pod, operationTimeoutMs, TimeUnit.MILLISECONDS, restartContext);
             } else if (restartContext.needsRestart || restartContext.needsReconfig) {
-                if (deferController(nodeRef, restartContext)) {
+                if (deferController(nodeRef, isController, isBroker)) {
                     LOGGER.debugCr(reconciliation, "Pod {} is the active controller and there are other pods to verify first.", nodeRef);
                     throw new ForceableProblem("Pod " + nodeRef.podName() + " is the active controller and there are other pods to verify first");
-                } else if (!canRoll(nodeRef.nodeId(), isController, isBroker, 60, TimeUnit.SECONDS, false, restartContext)) {
+                } else if (!canRoll(nodeRef, isController, isBroker, 60, TimeUnit.SECONDS, false, restartContext)) {
                     LOGGER.debugCr(reconciliation, "Pod {} cannot be updated right now", nodeRef);
                     throw new UnforceableProblem("Pod " + nodeRef.podName() + " cannot be updated right now.");
                 } else {
@@ -491,7 +477,7 @@ public class KafkaRoller {
         } catch (ForceableProblem e) {
             if (restartContext.podStuck || restartContext.backOff.done() || e.forceNow) {
 
-                if (canRoll(nodeRef.nodeId(), isController, isBroker, 60_000, TimeUnit.MILLISECONDS, true, restartContext)) {
+                if (canRoll(nodeRef, isController, isBroker, 60_000, TimeUnit.MILLISECONDS, true, restartContext)) {
                     String errorMsg = e.getMessage();
 
                     if (e.getCause() != null) {
@@ -589,7 +575,7 @@ public class KafkaRoller {
      * Determine whether the pod should be restarted, or the broker reconfigured.
      */
     @SuppressWarnings("checkstyle:CyclomaticComplexity")
-    private void checkIfRestartOrReconfigureRequired(NodeRef nodeRef, boolean isController, boolean isBroker, RestartContext restartContext, String currentVersion) throws ForceableProblem, InterruptedException, FatalProblem, UnforceableProblem {
+    private void checkIfRestartOrReconfigureRequired(NodeRef nodeRef, boolean isController, boolean isBroker, RestartContext restartContext) throws ForceableProblem, InterruptedException, FatalProblem {
         RestartReasons reasonToRestartPod = restartContext.restartReasons;
         if (restartContext.podStuck && !reasonToRestartPod.contains(RestartReason.POD_HAS_OLD_REVISION)) {
             // If the pod is unschedulable then deleting it, or trying to open an Admin client to it will make no difference
@@ -611,27 +597,15 @@ public class KafkaRoller {
         boolean needsReconfig = false;
 
         // if it is a pure controller, initialise the admin client specifically for controllers
-        if (isController && !isBroker) {
-            if (!maybeInitControllerAdminClient(currentVersion)) {
-                handleFailedAdminClientForController(nodeRef, restartContext, reasonToRestartPod, currentVersion);
-                return;
-            }
-            restartContext.quorumCheck = quorumCheck(controllerAdminClient, nodeRef);
+        boolean adminClientCreated = isController && !isBroker ? maybeInitControllerAdminClient() : maybeInitBrokerAdminClient();
+        if (!adminClientCreated) {
+            LOGGER.infoCr(reconciliation, "Pod {} needs to be restarted, because it does not seem to responding to connection attempts", nodeRef);
+            reasonToRestartPod.add(RestartReason.POD_UNRESPONSIVE);
+            markRestartContextWithForceRestart(restartContext);
+            return;
         }
 
         if (isBroker) {
-            if (!maybeInitBrokerAdminClient()) {
-                LOGGER.infoCr(reconciliation, "Pod {} needs to be restarted, because it does not seem to responding to connection attempts", nodeRef);
-                reasonToRestartPod.add(RestartReason.POD_UNRESPONSIVE);
-                markRestartContextWithForceRestart(restartContext);
-                return;
-            }
-
-            // If it is a mixed node, initialise quorum check with the broker admin client
-            if (isController) {
-                restartContext.quorumCheck = quorumCheck(brokerAdminClient, nodeRef);
-            }
-
             // Always get the broker config. This request gets sent to that specific broker, so it's a proof that we can
             // connect to the broker and that it's capable of responding.
             Config brokerConfig;
@@ -675,21 +649,6 @@ public class KafkaRoller {
         restartContext.forceRestart = false;
         restartContext.brokerConfigDiff = brokerConfigDiff;
         restartContext.brokerLoggingDiff = brokerLoggingDiff;
-    }
-
-    private void handleFailedAdminClientForController(NodeRef nodeRef, RestartContext restartContext, RestartReasons reasonToRestartPod, String currentVersion) throws UnforceableProblem {
-        if (KafkaVersion.compareDottedVersions(currentVersion, "3.9.0") >= 0) {
-            // If the version supports talking to controllers, force restart this pod when the admin client cannot be initialised.
-            // There is no reason to continue as we won't be able to connect an admin client to this pod for other checks later.
-            LOGGER.infoCr(reconciliation, "KafkaQuorumCheck cannot be initialised for {} because none of the controllers do not seem to responding to connection attempts.", nodeRef);
-            reasonToRestartPod.add(RestartReason.POD_UNRESPONSIVE);
-            markRestartContextWithForceRestart(restartContext);
-        } else {
-            // If the version does not support talking to controllers, the admin client should be connecting to the broker nodes.
-            // Since connection to the brokers failed, throw an UnforceableProblem so that broker nodes can be checked later
-            // which may potentially resolve the connection issue.
-            throw new UnforceableProblem("KafkaQuorumCheck cannot be initialised for " + nodeRef + " because none of the brokers do not seem to responding to connection attempts");
-        }
     }
 
     /**
@@ -801,20 +760,21 @@ public class KafkaRoller {
         }
     }
 
-    private boolean canRoll(int nodeId, boolean isController, boolean isBroker, long timeout, TimeUnit unit, boolean ignoreSslError, RestartContext restartContext)
-            throws ForceableProblem, InterruptedException, UnforceableProblem {
+    private boolean canRoll(NodeRef nodeRef, boolean isController, boolean isBroker, long timeout, TimeUnit unit, boolean ignoreSslError, RestartContext restartContext)
+            throws Exception {
         try {
             if (isBroker && isController) {
-                boolean canRollController = await(restartContext.quorumCheck.canRollController(nodeId), timeout, unit,
+                //No need to discover the active controller first when it is a combined node, because brokers forward describeQuorum requests to the active controller
+                boolean canRollController = await(quorumCheck(brokerAdminClient, nodeRef).canRollController(nodeRef.nodeId()), timeout, unit,
                         t -> new UnforceableProblem("An error while trying to determine the possibility of updating Kafka controller pods", t));
-                boolean canRollBroker = await(availability(brokerAdminClient).canRoll(nodeId), timeout, unit,
+                boolean canRollBroker = await(availability(brokerAdminClient).canRoll(nodeRef.nodeId()), timeout, unit,
                         t -> new ForceableProblem("An error while trying to determine the possibility of updating Kafka broker pods", t));
+
                 return canRollController && canRollBroker;
             } else if (isController) {
-                return await(restartContext.quorumCheck.canRollController(nodeId), timeout, unit,
-                        t -> new UnforceableProblem("An error while trying to determine the possibility of updating Kafka controller pods", t));
+                return canRollController(nodeRef, timeout, unit);
             } else {
-                return await(availability(brokerAdminClient).canRoll(nodeId), timeout, unit,
+                return await(availability(brokerAdminClient).canRoll(nodeRef.nodeId()), timeout, unit,
                         t -> new ForceableProblem("An error while trying to determine the possibility of updating Kafka broker pods", t));
             }
         } catch (ForceableProblem | UnforceableProblem e) {
@@ -824,6 +784,38 @@ public class KafkaRoller {
                 return true;
             } else {
                 throw e;
+            }
+        }
+    }
+
+    private boolean canRollController(NodeRef nodeRef, long timeout, TimeUnit unit) throws UnforceableProblem, InterruptedException, ForceableProblem {
+        // Discover the active controller first so that the admin client can be bootstrapped only with the active controller.
+        // This is because quorum info can be requested only from the active controller.
+        // TODO: Once KAFKA-18230 is completed and supported in Strimzi, we can remove this method,
+        //       and simply use the regular controllerAdminClient for the quorum check
+        int activeController = getActiveController(nodeRef, controllerAdminClient, operationTimeoutMs, TimeUnit.MILLISECONDS);
+        if (activeController < 0) {
+            // TODO: if the active controller is returned as -1 (maybe election was still in progress),
+            //      use the admin client bootstrapped with all controller nodes to see if it can hit the active controller by luck.
+            //      If it does not hit the active controller, it will return an error and this node will be retried later anyway.
+            //      Otherwise we can just return false here, and the node will be then retried later.
+            return await(quorumCheck(controllerAdminClient, nodeRef).canRollController(nodeRef.nodeId()), timeout, unit,
+                    t -> new UnforceableProblem("An error while trying to determine the possibility of updating Kafka controller pods", t));
+        }
+
+        Admin activeControllerAdmin = null;
+        try {
+            activeControllerAdmin = controllerAdminClient(nodes.stream().filter(node -> (node.nodeId() == activeController)).collect(Collectors.toSet()));
+            return await(quorumCheck(activeControllerAdmin, nodeRef).canRollController(nodeRef.nodeId()), timeout, unit,
+                    t -> new UnforceableProblem("An error while trying to determine the possibility of updating Kafka controller pods", t));
+        } finally {
+            try {
+                if (activeControllerAdmin != null) {
+                    activeControllerAdmin.close(Duration.ofSeconds(30));
+                }
+            } catch (RuntimeException e) {
+                LOGGER.debugCr(reconciliation, "Exception closing controller admin client", e);
+
             }
         }
     }
@@ -903,19 +895,10 @@ public class KafkaRoller {
     }
 
     /**
-     * Returns an AdminClient instance bootstrapped from the given nodes. If nodes is an
-     * empty set, use the brokers service to bootstrap the client.
+     * Returns an AdminClient instance bootstrapped from the given broker nodes.
      */
-    /* test */ Admin brokerAdminClient(Set<NodeRef> nodes) throws ForceableProblem, FatalProblem {
-        // If no nodes are passed, initialize the admin client using the bootstrap service
-        // This is still needed for versions older than 3.9.0, so that when only controller nodes being rolled,
-        // it can use brokers to get quorum information via AdminClient.
-        String bootstrapHostnames;
-        if (nodes.isEmpty()) {
-            bootstrapHostnames = String.format("%s:%s", DnsNameGenerator.of(namespace, KafkaResources.bootstrapServiceName(cluster)).serviceDnsName(), KafkaCluster.REPLICATION_PORT);
-        } else {
-            bootstrapHostnames = nodes.stream().filter(NodeRef::broker).map(node -> DnsNameGenerator.podDnsName(namespace, KafkaResources.brokersServiceName(cluster), node.podName()) + ":" + KafkaCluster.REPLICATION_PORT).collect(Collectors.joining(","));
-        }
+    /* test */ Admin brokerAdminClient(Set<NodeRef> nodes) throws ForceableProblem {
+        String bootstrapHostnames = nodes.stream().filter(NodeRef::broker).map(node -> DnsNameGenerator.podDnsName(namespace, KafkaResources.brokersServiceName(cluster), node.podName()) + ":" + KafkaCluster.REPLICATION_PORT).collect(Collectors.joining(","));
 
         try {
             LOGGER.debugCr(reconciliation, "Creating AdminClient for {}", bootstrapHostnames);
@@ -928,7 +911,7 @@ public class KafkaRoller {
     /**
      * Returns an AdminClient instance bootstrapped from the given controller nodes.
      */
-    /* test */ Admin controllerAdminClient(Set<NodeRef> nodes) throws ForceableProblem, FatalProblem {
+    /* test */ Admin controllerAdminClient(Set<NodeRef> nodes) throws ForceableProblem {
         String bootstrapHostnames = nodes.stream().filter(NodeRef::controller).map(node -> DnsNameGenerator.podDnsName(namespace, KafkaResources.brokersServiceName(cluster), node.podName()) + ":" + KafkaCluster.CONTROLPLANE_PORT).collect(Collectors.joining(","));
 
         try {
@@ -955,11 +938,16 @@ public class KafkaRoller {
     }
     
     /**
-     * Return true if the given {@code nodeId} is the controller or the active controller in KRaft case and there are other brokers we might yet have to consider.
+     * Return true if the given {@code nodeId} is the active controller and there are other brokers we might yet have to consider.
      * This ensures that the active controller is restarted/reconfigured last.
+     * If node role is not controller, then return false as this check does not apply to brokers.
      */
-    private boolean deferController(NodeRef nodeRef, RestartContext restartContext) throws Exception {
-        int controller = controller(nodeRef, operationTimeoutMs, TimeUnit.MILLISECONDS, restartContext);
+    private boolean deferController(NodeRef nodeRef, boolean isController, boolean isBroker) throws Exception {
+        if (!isController) {
+            return false;
+        }
+
+        int controller = getActiveController(nodeRef, isBroker ? brokerAdminClient : controllerAdminClient, operationTimeoutMs, TimeUnit.MILLISECONDS);
         if (controller == nodeRef.nodeId()) {
             int stillRunning = podToContext.reduceValuesToInt(100, v -> v.promise.future().isComplete() ? 0 : 1,
                     0, Integer::sum);
@@ -970,63 +958,54 @@ public class KafkaRoller {
     }
 
     /**
-     * Completes the returned future <strong>on the context thread</strong> with the id of the controller of the cluster
-     * or the active controller when running in KRaft mode.
+     * Completes the returned future <strong>on the context thread</strong> with the id of the active controller.
      * This will be -1 if there is not currently a controller.
      *
      * @return A future which completes the node id of the controller of the cluster, or -1 if there is not currently a controller.
      */
     @SuppressFBWarnings("RCN_REDUNDANT_NULLCHECK_WOULD_HAVE_BEEN_A_NPE") // seems to be completely spurious
-    int controller(NodeRef nodeRef, long timeout, TimeUnit unit, RestartContext restartContext) throws Exception {
+    int getActiveController(NodeRef nodeRef, Admin ac, long timeout, TimeUnit unit) throws ForceableProblem, InterruptedException {
         int id;
-        if (nodeRef.controller()) {
-            id = await(restartContext.quorumCheck.quorumLeaderId(), timeout, unit,
-                    t -> new UnforceableProblem("An error while trying to determine the quorum leader id", t));
-            LOGGER.debugCr(reconciliation, "KRaft active controller is {}", id);
-        } else {
-            // TODO Either this is a KRaft broker or ZooKeeper broker. Since KafkaRoller does not know if this is KRaft mode or
-            //      not continue with describeCluster. In KRaft mode this returns a random broker and will mean this broker is deferred.
-            //      In future this can be improved by telling KafkaRoller whether the cluster is in KRaft mode or not.
-            //      This is tracked in https://github.com/strimzi/strimzi-kafka-operator/issues/9373.
-            // Use admin client connected directly to this broker here, then any exception or timeout trying to connect to
-            // the current node will be caught and handled from this method, rather than appearing elsewhere.
-            try (Admin ac = brokerAdminClient(Set.of(nodeRef))) {
-                Node controllerNode = null;
+        Node activeControllerNode;
+        // TODO: Previously when discovering the controller, we created an admin client against the single given node,
+        //       the reason seems to be so that we can check the connection to it via tcp probe.
+        //       I think the purpose of this method should be just to get the active controller, rather than
+        //       having an additional purpose of checking connection. Plus, this method is now only called for a controller node
+        //       as we don't need to check the active controller when rolling brokers. That means tcp probe is now done only
+        //       for a controller node. The tcpProbe for an individual node perhaps should be done earlier in checkIfRestartOrReconfigureRequired()
+        //       as this method's purpose is to determine the reason for restart and it already does similar type of checks.
 
-                try {
-                    DescribeClusterResult describeClusterResult = ac.describeCluster();
-                    KafkaFuture<Node> controller = describeClusterResult.controller();
-                    controllerNode = controller.get(timeout, unit);
-                    restartContext.clearConnectionError();
-                } catch (ExecutionException | TimeoutException e) {
-                    maybeTcpProbe(nodeRef, e, restartContext);
-                }
-
-                id = controllerNode == null || Node.noNode().equals(controllerNode) ? -1 : controllerNode.id();
-                LOGGER.debugCr(reconciliation, "Controller is {} (only relevant for Zookeeper mode)", id);
-            }
+        try {
+            DescribeClusterResult describeClusterResult = ac.describeCluster();
+            KafkaFuture<Node> controller = describeClusterResult.controller();
+            activeControllerNode = controller.get(timeout, unit);
+        } catch (ExecutionException | TimeoutException e) {
+            throw new ForceableProblem("Error while trying to determine the active controller to roll pod " + nodeRef.podName(), e.getCause());
         }
+        
+        id = activeControllerNode == null || Node.noNode().equals(activeControllerNode) ? -1 : activeControllerNode.id();
+        LOGGER.debugCr(reconciliation, "Active controller is {} ", id);
         return id;
     }
 
     /**
-     * If we've already had trouble connecting to this broker try to probe whether the connection is
-     * open on the broker; if it's not then maybe throw a ForceableProblem to immediately force a restart.
-     * This is an optimization for brokers which don't seem to be running.
+     * If we've already had trouble connecting to this node try to probe whether the connection is
+     * open on the node; if it's not then maybe throw a ForceableProblem to immediately force a restart.
+     * This is an optimization for nodes which don't seem to be running.
      */
-    private void maybeTcpProbe(NodeRef nodeRef, Exception executionException, RestartContext restartContext) throws Exception {
+    private void maybeTcpProbe(NodeRef nodeRef, Exception executionException, boolean isController, RestartContext restartContext) throws Exception {
+        int port = isController ? KafkaCluster.CONTROLPLANE_PORT : KafkaCluster.REPLICATION_PORT;
         if (restartContext.connectionError() + nodes.size() * 120_000L >= System.currentTimeMillis()) {
             try {
                 LOGGER.debugCr(reconciliation, "Probing TCP port due to previous problems connecting to pod {}", nodeRef);
                 // do a tcp connect and close (with a short connect timeout)
-                tcpProbe(DnsNameGenerator.podDnsName(namespace, KafkaResources.brokersServiceName(cluster), nodeRef.podName()), KafkaCluster.REPLICATION_PORT);
+                tcpProbe(DnsNameGenerator.podDnsName(namespace, KafkaResources.brokersServiceName(cluster), nodeRef.podName()), port);
             } catch (IOException connectionException) {
-                throw new ForceableProblem("Unable to connect to " + nodeRef.podName() + ":" + KafkaCluster.REPLICATION_PORT, executionException.getCause(), true);
+                throw new ForceableProblem("Unable to connect to " + nodeRef.podName() + ":" + port, executionException.getCause(), true);
             }
-            throw executionException;
         } else {
             restartContext.noteConnectionError();
-            throw new ForceableProblem("Error while trying to determine the cluster controller from pod " + nodeRef.podName(), executionException.getCause());
+            throw new ForceableProblem("Error while trying to determine the active controller from pod " + nodeRef.podName(), executionException.getCause());
         }
     }
 
