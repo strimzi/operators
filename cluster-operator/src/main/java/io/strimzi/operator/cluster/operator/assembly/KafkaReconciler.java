@@ -772,7 +772,7 @@ public class KafkaReconciler {
                 .map(secretName -> {
                     LOGGER.debugCr(reconciliation, "Deleting old Secret {}/{} that is no longer used.", reconciliation.namespace(), secretName);
                     return secretOperator.deleteAsync(reconciliation, reconciliation.namespace(), secretName, false);
-                }).toList();
+                }).collect(Collectors.toCollection(ArrayList::new)); // We need to collect to mutable list because we might need to add to the list more items later
 
         // Remove old Secret containing all certs if it exists
         @SuppressWarnings("deprecation")
