@@ -307,7 +307,7 @@ class LogSettingST extends AbstractST {
             .build());
 
         final String connectDepName = KafkaConnectResources.componentName(testStorage.getClusterName());
-        final String connectMap = KafkaConnectResources.metricsAndLogConfigMapName(testStorage.getClusterName());
+        final String connectMap = KafkaConnectResources.configMapName(testStorage.getClusterName());
         final Map<String, String> connectPods = PodUtils.podSnapshot(Environment.TEST_SUITE_NAMESPACE, testStorage.getKafkaConnectSelector());
 
         LOGGER.info("Checking if Connect has log level set properly");
@@ -353,7 +353,7 @@ class LogSettingST extends AbstractST {
             .build());
 
         final String mm2DepName = KafkaMirrorMaker2Resources.componentName(testStorage.getClusterName());
-        final String mirrorMakerMap = KafkaMirrorMaker2Resources.metricsAndLogConfigMapName(testStorage.getClusterName());
+        final String mirrorMakerMap = KafkaMirrorMaker2Resources.configMapName(testStorage.getClusterName());
         final Map<String, String> mm2Pods = PodUtils.podSnapshot(Environment.TEST_SUITE_NAMESPACE, testStorage.getMM2Selector());
 
         LOGGER.info("Checking if MirrorMaker2 has log level set properly");

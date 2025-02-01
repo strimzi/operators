@@ -193,6 +193,9 @@ public class KafkaConnectAssemblyOperator extends AbstractConnectOperator<Kubern
                     }
 
                     desiredLogging.set(logging);
+
+                    podAnnotations.put(KafkaConnectCluster.ANNO_STRIMZI_IO_CONFIGURATION_HASH, Util.hashStub(logAndMetricsConfigMap.getData().get(KafkaConnectCluster.KAFKA_CONNECT_CONFIGURATION_FILENAME)));
+
                     return configMapOperations.reconcile(reconciliation, namespace, logAndMetricsConfigMap.getMetadata().getName(), logAndMetricsConfigMap);
                 })
                 .compose(i -> ReconcilerUtils.reconcileJmxSecret(reconciliation, secretOperations, connect))

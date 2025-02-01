@@ -10,6 +10,7 @@
 * Allow configuring `ssl.principal.mapping.rules` and custom trusted CAs in Kafka brokers with `type: custom` authentication
 * Moved HTTP bridge configuration to the ConfigMap setup by the operator.
 * Dependency updates (Vert.x 4.5.12, Netty 4.1.117.Final)
+* Moved Kafka Connect configuration to the ConfigMap created by the operator.
 
 ### Major changes, deprecations and removals
 

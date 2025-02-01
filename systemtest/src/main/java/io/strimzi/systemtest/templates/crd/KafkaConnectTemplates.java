@@ -105,7 +105,7 @@ public class KafkaConnectTemplates {
                 .endTls()
                 .addToConfig("group.id", KafkaConnectResources.componentName(kafkaConnectClusterName))
                 .addToConfig("offset.storage.topic", KafkaConnectResources.configStorageTopicOffsets(kafkaConnectClusterName))
-                .addToConfig("config.storage.topic", KafkaConnectResources.metricsAndLogConfigMapName(kafkaConnectClusterName))
+                .addToConfig("config.storage.topic", KafkaConnectResources.configMapName(kafkaConnectClusterName))
                 .addToConfig("status.storage.topic", KafkaConnectResources.configStorageTopicStatus(kafkaConnectClusterName))
                 .addToConfig("config.storage.replication.factor", "-1")
                 .addToConfig("offset.storage.replication.factor", "-1")

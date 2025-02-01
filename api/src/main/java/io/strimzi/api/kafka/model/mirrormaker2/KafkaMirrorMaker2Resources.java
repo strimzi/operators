@@ -38,11 +38,12 @@ public class KafkaMirrorMaker2Resources {
     }
 
     /**
-     * Returns the name of the Kafka MirrorMaker 2 metrics and log {@code ConfigMap} for a {@code KafkaMirrorMaker2} cluster of the given name.
+     * Returns the name of the Kafka MirrorMaker 2 configurations including metrics and log {@code ConfigMap}
+     * for a {@code KafkaMirrorMaker2} cluster of the given name.
      * @param clusterName  The {@code metadata.name} of the {@code KafkaMirrorMaker2} resource.
-     * @return The name of the corresponding KafkaMirrorMaker2 metrics and log {@code ConfigMap}.
+     * @return The name of the corresponding KafkaMirrorMaker2 configurations {@code ConfigMap}.
      */
-    public static String metricsAndLogConfigMapName(String clusterName) {
+    public static String configMapName(String clusterName) {
         return clusterName + "-mirrormaker2-config";
     }
 

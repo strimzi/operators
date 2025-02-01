@@ -67,6 +67,7 @@ import io.strimzi.operator.cluster.model.metrics.MetricsModel;
 import io.strimzi.operator.cluster.model.metrics.SupportsMetrics;
 import io.strimzi.operator.cluster.model.securityprofiles.ContainerSecurityProviderContextImpl;
 import io.strimzi.operator.cluster.model.securityprofiles.PodSecurityProviderContextImpl;
+import io.strimzi.operator.common.Annotations;
 import io.strimzi.operator.common.Reconciliation;
 import io.strimzi.operator.common.Util;
 import io.strimzi.operator.common.model.Labels;
@@ -97,18 +98,26 @@ public class KafkaConnectCluster extends AbstractModel implements SupportsMetric
     protected static final String EXTERNAL_CONFIGURATION_VOLUME_MOUNT_BASE_PATH = "/opt/kafka/external-configuration/";
     protected static final String EXTERNAL_CONFIGURATION_VOLUME_NAME_PREFIX = "ext-conf-";
     protected static final String OAUTH_TLS_CERTS_BASE_VOLUME_MOUNT = "/opt/kafka/oauth-certs/";
-    protected static final String LOG_AND_METRICS_CONFIG_VOLUME_NAME = "kafka-metrics-and-logging";
-    protected static final String LOG_AND_METRICS_CONFIG_VOLUME_MOUNT = "/opt/kafka/custom-config/";
+    protected static final String KAFKA_CONNECT_CONFIG_VOLUME_NAME = "kafka-connect-configurations";
+    protected static final String KAFKA_CONNECT_CONFIG_VOLUME_MOUNT = "/opt/kafka/custom-config/";
 
     // Configuration defaults
     private static final Probe DEFAULT_HEALTHCHECK_OPTIONS = new ProbeBuilder().withTimeoutSeconds(5).withInitialDelaySeconds(60).build();
 
+    /**
+     * Key under which the Connect configuration is stored in ConfigMap
+     */
+    public static final String KAFKA_CONNECT_CONFIGURATION_FILENAME = "kafka-connect.properties";
+
+    /**
+     * Annotation for rolling the connect pod whenever the configuration within the kafka-connect.properties file is changed.
+     * When the configuration hash annotation change is detected, we force a pod restart.
+     */
+    public static final String ANNO_STRIMZI_IO_CONFIGURATION_HASH = Annotations.STRIMZI_DOMAIN + "configuration-hash";
+
     // Kafka Connect configuration keys (EnvVariables)
     protected static final String ENV_VAR_PREFIX = "KAFKA_CONNECT_";
-    protected static final String ENV_VAR_KAFKA_CONNECT_CONFIGURATION = "KAFKA_CONNECT_CONFIGURATION";
     protected static final String ENV_VAR_KAFKA_CONNECT_METRICS_ENABLED = "KAFKA_CONNECT_METRICS_ENABLED";
-    protected static final String ENV_VAR_KAFKA_CONNECT_BOOTSTRAP_SERVERS = "KAFKA_CONNECT_BOOTSTRAP_SERVERS";
-    protected static final String ENV_VAR_KAFKA_CONNECT_TLS = "KAFKA_CONNECT_TLS";
     protected static final String ENV_VAR_KAFKA_CONNECT_TRUSTED_CERTS = "KAFKA_CONNECT_TRUSTED_CERTS";
     protected static final String ENV_VAR_KAFKA_CONNECT_TLS_AUTH_CERT = "KAFKA_CONNECT_TLS_AUTH_CERT";
     protected static final String ENV_VAR_KAFKA_CONNECT_TLS_AUTH_KEY = "KAFKA_CONNECT_TLS_AUTH_KEY";
@@ -129,7 +138,7 @@ public class KafkaConnectCluster extends AbstractModel implements SupportsMetric
     private Rack rack;
     private String initImage;
     protected String serviceName;
-    protected String loggingAndMetricsConfigMapName;
+    protected String connectConfigMapName;
 
     protected String bootstrapServers;
     @SuppressWarnings("deprecation") // External Configuration environment variables are deprecated
@@ -188,7 +197,7 @@ public class KafkaConnectCluster extends AbstractModel implements SupportsMetric
         super(reconciliation, resource, name, componentType, sharedEnvironmentProvider);
 
         this.serviceName = KafkaConnectResources.serviceName(cluster);
-        this.loggingAndMetricsConfigMapName = KafkaConnectResources.metricsAndLogConfigMapName(cluster);
+        this.connectConfigMapName = KafkaConnectResources.configMapName(cluster);
     }
 
     /**
@@ -370,7 +379,7 @@ public class KafkaConnectCluster extends AbstractModel implements SupportsMetric
     protected List<Volume> getVolumes(boolean isOpenShift) {
         List<Volume> volumeList = new ArrayList<>(2);
         volumeList.add(VolumeUtils.createTempDirVolume(templatePod));
-        volumeList.add(VolumeUtils.createConfigMapVolume(LOG_AND_METRICS_CONFIG_VOLUME_NAME, loggingAndMetricsConfigMapName));
+        volumeList.add(VolumeUtils.createConfigMapVolume(KAFKA_CONNECT_CONFIG_VOLUME_NAME, connectConfigMapName));
 
         if (rack != null) {
             volumeList.add(VolumeUtils.createEmptyDirVolume(INIT_VOLUME_NAME, "1Mi", "Memory"));
@@ -434,7 +443,7 @@ public class KafkaConnectCluster extends AbstractModel implements SupportsMetric
     protected List<VolumeMount> getVolumeMounts() {
         List<VolumeMount> volumeMountList = new ArrayList<>(2);
         volumeMountList.add(VolumeUtils.createTempDirVolumeMount());
-        volumeMountList.add(VolumeUtils.createVolumeMount(LOG_AND_METRICS_CONFIG_VOLUME_NAME, LOG_AND_METRICS_CONFIG_VOLUME_MOUNT));
+        volumeMountList.add(VolumeUtils.createVolumeMount(KAFKA_CONNECT_CONFIG_VOLUME_NAME, KAFKA_CONNECT_CONFIG_VOLUME_MOUNT));
 
         if (rack != null) {
             volumeMountList.add(VolumeUtils.createVolumeMount(INIT_VOLUME_NAME, INIT_VOLUME_MOUNT));
@@ -610,9 +619,7 @@ public class KafkaConnectCluster extends AbstractModel implements SupportsMetric
 
     protected List<EnvVar> getEnvVars() {
         List<EnvVar> varList = new ArrayList<>();
-        varList.add(ContainerUtils.createEnvVar(ENV_VAR_KAFKA_CONNECT_CONFIGURATION, configuration.getConfiguration()));
         varList.add(ContainerUtils.createEnvVar(ENV_VAR_KAFKA_CONNECT_METRICS_ENABLED, String.valueOf(metrics.isEnabled())));
-        varList.add(ContainerUtils.createEnvVar(ENV_VAR_KAFKA_CONNECT_BOOTSTRAP_SERVERS, bootstrapServers));
         varList.add(ContainerUtils.createEnvVar(ENV_VAR_STRIMZI_KAFKA_GC_LOG_ENABLED, String.valueOf(gcLoggingEnabled)));
 
         JvmOptionUtils.heapOptions(varList, 75, 0L, jvmOptions, resources);
@@ -642,8 +649,6 @@ public class KafkaConnectCluster extends AbstractModel implements SupportsMetric
     }
 
     private void populateTLSEnvVars(final List<EnvVar> varList) {
-        varList.add(ContainerUtils.createEnvVar(ENV_VAR_KAFKA_CONNECT_TLS, "true"));
-
         if (tls.getTrustedCertificates() != null && !tls.getTrustedCertificates().isEmpty()) {
             varList.add(ContainerUtils.createEnvVar(ENV_VAR_KAFKA_CONNECT_TRUSTED_CERTS, CertUtils.trustedCertsEnvVar(tls.getTrustedCertificates())));
         }
@@ -835,21 +840,37 @@ public class KafkaConnectCluster extends AbstractModel implements SupportsMetric
     }
 
     /**
-     * Generates a metrics and logging ConfigMap according to the configuration. If this operand doesn't support logging
-     * or metrics, they will nto be set.
+     * Generates a ConfigMap containing Connect configurations.
+     * It also generates the metrics and logging configuration. If this operand doesn't support logging
+     * or metrics, they will not be set.
      *
      * @param metricsAndLogging     The external CMs with logging and metrics configuration
      *
      * @return The generated ConfigMap
      */
-    public ConfigMap generateMetricsAndLogConfigMap(MetricsAndLogging metricsAndLogging) {
+    public ConfigMap generateConnectConfigMap(MetricsAndLogging metricsAndLogging) {
+        // generate the ConfigMap data entries for the metrics and logging configuration
+        Map<String, String> data = ConfigMapUtils.generateMetricsAndLogConfigMapData(reconciliation, this, metricsAndLogging);
+        // add the ConfigMap data entry for Connect configurations
+        data.put(
+                KAFKA_CONNECT_CONFIGURATION_FILENAME,
+                new KafkaConnectConfigurationBuilder(bootstrapServers)
+                        .withConfigurations(configuration)
+                        .withRestListeners(REST_API_PORT)
+                        .withPluginPath()
+                        .withTls(tls)
+                        .withAuthentication(authentication)
+                        .withRackId()
+                        .build()
+        );
+
         return ConfigMapUtils
                 .createConfigMap(
-                        loggingAndMetricsConfigMapName,
+                        connectConfigMapName,
                         namespace,
                         labels,
                         ownerReference,
-                        ConfigMapUtils.generateMetricsAndLogConfigMapData(reconciliation, this, metricsAndLogging)
+                        data
                 );
     }
 

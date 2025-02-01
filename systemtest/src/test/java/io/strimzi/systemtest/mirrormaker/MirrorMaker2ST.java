@@ -58,7 +58,6 @@ import io.strimzi.systemtest.utils.kubeUtils.controllers.JobUtils;
 import io.strimzi.systemtest.utils.kubeUtils.controllers.StrimziPodSetUtils;
 import io.strimzi.systemtest.utils.kubeUtils.objects.PodUtils;
 import io.strimzi.systemtest.utils.kubeUtils.objects.SecretUtils;
-import io.strimzi.test.ReadWriteUtils;
 import io.strimzi.test.TestUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -81,12 +80,10 @@ import static io.strimzi.test.k8s.KubeClusterResource.kubeClient;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.valid4j.matchers.jsonpath.JsonPathMatchers.hasJsonPath;
 
 @Tag(REGRESSION)
 @Tag(MIRROR_MAKER2)
@@ -100,7 +97,8 @@ class MirrorMaker2ST extends AbstractST {
         final TestStorage testStorage = new TestStorage(ResourceManager.getTestContext());
         final int mirrorMakerReplicasCount = 2;
 
-        Map<String, Object> expectedConfig = StUtils.loadProperties("group.id=mirrormaker2-cluster\n" +
+        Map<String, Object> expectedConfig = StUtils.loadProperties("bootstrap.servers=" + KafkaResources.plainBootstrapAddress(testStorage.getTargetClusterName()) + "\n" +
+                "group.id=mirrormaker2-cluster\n" +
                 "key.converter=org.apache.kafka.connect.converters.ByteArrayConverter\n" +
                 "value.converter=org.apache.kafka.connect.converters.ByteArrayConverter\n" +
                 "header.converter=org.apache.kafka.connect.converters.ByteArrayConverter\n" +
@@ -109,9 +107,7 @@ class MirrorMaker2ST extends AbstractST {
                 "offset.storage.topic=mirrormaker2-cluster-offsets\n" +
                 "config.storage.replication.factor=-1\n" +
                 "status.storage.replication.factor=-1\n" +
-                "offset.storage.replication.factor=-1\n" +
-                "config.providers=file\n" +
-                "config.providers.file.class=org.apache.kafka.common.config.provider.FileConfigProvider\n");
+                "offset.storage.replication.factor=-1\n");
 
         // Deploy source and target kafka
         resourceManager.createResourceWithWait(
@@ -147,12 +143,11 @@ class MirrorMaker2ST extends AbstractST {
         resourceManager.createResourceWithWait(sourceClients.producerStrimzi(), sourceClients.consumerStrimzi());
         ClientUtils.waitForInstantClientSuccess(testStorage);
 
-        String podName = PodUtils.getPodNameByPrefix(testStorage.getNamespaceName(), KafkaMirrorMaker2Resources.componentName(testStorage.getClusterName()));
-        String kafkaPodJson = ReadWriteUtils.writeObjectToJsonString(kubeClient().getPod(testStorage.getNamespaceName(), podName));
-
-        assertThat(kafkaPodJson, hasJsonPath(StUtils.globalVariableJsonPathBuilder(0, "KAFKA_CONNECT_BOOTSTRAP_SERVERS"),
-                hasItem(KafkaResources.plainBootstrapAddress(testStorage.getTargetClusterName()))));
-        assertThat(StUtils.getPropertiesFromJson(0, kafkaPodJson, "KAFKA_CONNECT_CONFIGURATION"), is(expectedConfig));
+        LOGGER.info("Verifying configurations in config map");
+        ConfigMap configMap = kubeClient().namespace(testStorage.getNamespaceName()).getConfigMap(KafkaMirrorMaker2Resources.configMapName(testStorage.getClusterName()));
+        String connectConfigurations = configMap.getData().get("kafka-connect.properties");
+        Map<String, Object> config = StUtils.loadProperties(connectConfigurations);
+        assertThat(config.entrySet().containsAll(expectedConfig.entrySet()), is(true));
         VerificationUtils.verifyClusterOperatorMM2DockerImage(clusterOperator.getDeploymentNamespace(), testStorage.getNamespaceName(), testStorage.getClusterName());
 
         VerificationUtils.verifyPodsLabels(testStorage.getNamespaceName(), KafkaMirrorMaker2Resources.componentName(testStorage.getClusterName()), testStorage.getMM2Selector());

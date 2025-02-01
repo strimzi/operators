@@ -56,11 +56,12 @@ public class KafkaConnectResources {
     }
 
     /**
-     * Returns the name of the Kafka Connect metrics and log {@code ConfigMap} for a {@code KafkaConnect} cluster of the given name.
+     * Returns the name of the Kafka Connect configurations including metrics and log {@code ConfigMap}
+     * for a {@code KafkaConnect} cluster of the given name.
      * @param clusterName  The {@code metadata.name} of the {@code KafkaConnect} resource.
-     * @return The name of the corresponding KafkaConnect metrics and log {@code ConfigMap}.
+     * @return The name of the corresponding KafkaConnect configurations {@code ConfigMap}.
      */
-    public static String metricsAndLogConfigMapName(String clusterName) {
+    public static String configMapName(String clusterName) {
         return componentName(clusterName) + "-config";
     }
 

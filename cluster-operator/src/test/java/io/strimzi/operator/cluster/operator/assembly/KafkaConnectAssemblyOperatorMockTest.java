@@ -126,7 +126,7 @@ public class KafkaConnectAssemblyOperatorMockTest {
             .onComplete(context.succeeding(v -> context.verify(() -> {
                 if (!reconciliationPaused) {
                     assertThat(Crds.strimziPodSetOperation(client).inNamespace(namespace).withName(KafkaConnectResources.componentName(CLUSTER_NAME)).get(), is(notNullValue()));
-                    assertThat(client.configMaps().inNamespace(namespace).withName(KafkaConnectResources.metricsAndLogConfigMapName(CLUSTER_NAME)).get(), is(notNullValue()));
+                    assertThat(client.configMaps().inNamespace(namespace).withName(KafkaConnectResources.configMapName(CLUSTER_NAME)).get(), is(notNullValue()));
                     assertThat(client.services().inNamespace(namespace).withName(KafkaConnectResources.serviceName(CLUSTER_NAME)).get(), is(notNullValue()));
                     assertThat(client.policy().v1().podDisruptionBudget().inNamespace(namespace).withName(KafkaConnectResources.componentName(CLUSTER_NAME)).get(), is(notNullValue()));
                 } else {

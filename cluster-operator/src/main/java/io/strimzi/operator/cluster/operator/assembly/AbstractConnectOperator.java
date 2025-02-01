@@ -269,7 +269,7 @@ public abstract class AbstractConnectOperator<C extends KubernetesClient, T exte
      */
     protected Future<ConfigMap> generateMetricsAndLoggingConfigMap(Reconciliation reconciliation, KafkaConnectCluster kafkaConnectCluster) {
         return MetricsAndLoggingUtils.metricsAndLogging(reconciliation, configMapOperations, kafkaConnectCluster.logging(), kafkaConnectCluster.metrics())
-                .compose(metricsAndLoggingCm -> Future.succeededFuture(kafkaConnectCluster.generateMetricsAndLogConfigMap(metricsAndLoggingCm)));
+                .compose(metricsAndLoggingCm -> Future.succeededFuture(kafkaConnectCluster.generateConnectConfigMap(metricsAndLoggingCm)));
     }
 
     /**

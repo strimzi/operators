@@ -85,7 +85,7 @@ public class KafkaMirrorMaker2Cluster extends KafkaConnectCluster {
 
         this.connectors = KafkaMirrorMaker2Connectors.fromCrd(reconciliation, resource);
         this.serviceName = KafkaMirrorMaker2Resources.serviceName(cluster);
-        this.loggingAndMetricsConfigMapName = KafkaMirrorMaker2Resources.metricsAndLogConfigMapName(cluster);
+        this.connectConfigMapName = KafkaMirrorMaker2Resources.configMapName(cluster);
     }
 
     /**
