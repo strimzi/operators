@@ -99,18 +99,7 @@ class RackAwarenessST extends AbstractST {
         Pod pod = kubeClient().getPod(testStorage.getNamespaceName(), podName);
 
         resourceManager.createResourceWithWait(
-            AdminClientTemplates.plainAdminClient(testStorage.getNamespaceName(), testStorage.getAdminName(), KafkaResources.plainBootstrapAddress(testStorage.getClusterName()))
-                .editSpec()
-                    .editTemplate()
-                        .editSpec()
-                            .editFirstContainer()
-                                // TODO: once new test-clients are released (0.10.0), this should be removed
-                                .withImage("quay.io/strimzi-test-clients/test-clients:latest-kafka-" + Environment.ST_KAFKA_VERSION)
-                            .endContainer()
-                        .endSpec()
-                    .endTemplate()
-                .endSpec()
-                .build()
+            AdminClientTemplates.plainAdminClient(testStorage.getNamespaceName(), testStorage.getAdminName(), KafkaResources.plainBootstrapAddress(testStorage.getClusterName())).build()
         );
         final AdminClient adminClient = AdminClientUtils.getConfiguredAdminClient(testStorage.getNamespaceName(), testStorage.getAdminName());
 

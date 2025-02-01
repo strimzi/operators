@@ -42,6 +42,7 @@ public class KafkaClients extends BaseClients {
     private String caCertSecretName;
     private String headers;
     private PodSecurityProfile podSecurityPolicy;
+    private String messagesPerTransaction;
 
     public String getProducerName() {
         return producerName;
@@ -136,6 +137,14 @@ public class KafkaClients extends BaseClients {
     }
     public void setPodSecurityPolicy(final PodSecurityProfile podSecurityPolicy) {
         this.podSecurityPolicy = podSecurityPolicy;
+    }
+
+    public void setMessagesPerTransaction(String messagesPerTransaction) {
+        this.messagesPerTransaction = messagesPerTransaction;
+    }
+
+    public String getMessagesPerTransaction() {
+        return messagesPerTransaction;
     }
 
     public Job producerStrimzi() {
@@ -271,6 +280,22 @@ public class KafkaClients extends BaseClients {
                                 .addNewEnv()
                                     .withName("HEADERS")
                                     .withValue(this.getHeaders())
+                                .endEnv()
+                            .endContainer()
+                        .endSpec()
+                    .endTemplate()
+                .endSpec();
+        }
+
+        if (this.getMessagesPerTransaction() != null) {
+            builder
+                .editSpec()
+                    .editTemplate()
+                        .editSpec()
+                            .editFirstContainer()
+                                .addNewEnv()
+                                    .withName("MESSAGES_PER_TRANSACTION")
+                                    .withValue(this.getMessagesPerTransaction())
                                 .endEnv()
                             .endContainer()
                         .endSpec()
