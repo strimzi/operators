@@ -26,37 +26,42 @@ metrics
 │   ├── strimzi-operators.json
 ├── grafana-install
 │   └── grafana.yaml <2>
+├── kube-state-metrics <3>
+│   ├── configmap.yaml
+│   ├── ksm.yaml
+│   └── prometheus-rules.yaml
 ├── prometheus-additional-properties
-│   └── prometheus-additional.yaml <3>
+│   └── prometheus-additional.yaml <4>
 ├── prometheus-alertmanager-config
-│   └── alert-manager-config.yaml <4>
+│   └── alert-manager-config.yaml <5>
 ├── prometheus-install
-│    ├── alert-manager.yaml <5>
-│    ├── prometheus-rules.yaml <6>
-│    ├── prometheus.yaml <7>
-│    └── strimzi-pod-monitor.yaml <8>
-├── kafka-bridge-metrics.yaml <9>
-├── kafka-connect-metrics.yaml <10>
-├── kafka-cruise-control-metrics.yaml <11>
-├── kafka-metrics.yaml <12>
-├── kafka-mirror-maker-2-metrics.yaml <13>
-└── oauth-metrics.yaml <14>
+│    ├── alert-manager.yaml <6>
+│    ├── prometheus-rules.yaml <7>
+│    ├── prometheus.yaml <8>
+│    └── strimzi-pod-monitor.yaml <9>
+├── kafka-bridge-metrics.yaml <10>
+├── kafka-connect-metrics.yaml <11>
+├── kafka-cruise-control-metrics.yaml <12>
+├── kafka-metrics.yaml <13>
+├── kafka-mirror-maker-2-metrics.yaml <14>
+└── oauth-metrics.yaml <15>
 
 --
 <1> Example Grafana dashboards for the different Strimzi components.
 <2> Installation file for the Grafana image.
-<3> Additional configuration to scrape metrics for CPU, memory and disk volume usage, which comes directly from the Kubernetes cAdvisor agent and kubelet on the nodes.
-<4> Hook definitions for sending notifications through Alertmanager.
-<5> Resources for deploying and configuring Alertmanager.
-<6> Alerting rules examples for use with Prometheus Alertmanager (deployed with Prometheus).
-<7> Installation resource file for the Prometheus image.
-<8> PodMonitor definitions translated by the Prometheus Operator into jobs for the Prometheus server to be able to scrape metrics data directly from pods.
-<9> Kafka Bridge resource with metrics enabled.
-<10> Metrics configuration that defines Prometheus JMX Exporter relabeling rules for Kafka Connect.
-<11> Metrics configuration that defines Prometheus JMX Exporter relabeling rules for Cruise Control.
-<12> Metrics configuration that defines Prometheus JMX Exporter relabeling rules for Kafka.
-<13> Metrics configuration that defines Prometheus JMX Exporter relabeling rules for MirrorMaker 2.
-<14> Metrics configuration that defines Prometheus JMX Exporter relabeling rules for OAuth 2.0.
+<3> Kube-state-metrics configuration for custom resource monitoring.
+<4> Additional configuration to scrape metrics for CPU, memory and disk volume usage, which comes directly from the Kubernetes cAdvisor agent and kubelet on the nodes.
+<5> Hook definitions for sending notifications through Alertmanager.
+<6> Resources for deploying and configuring Alertmanager.
+<7> Alerting rules examples for use with Prometheus Alertmanager (deployed with Prometheus).
+<8> Installation resource file for the Prometheus image.
+<9> PodMonitor definitions translated by the Prometheus Operator into jobs for the Prometheus server to be able to scrape metrics data directly from pods.
+<10> Kafka Bridge resource with metrics enabled.
+<11> Metrics configuration that defines Prometheus JMX Exporter relabeling rules for Kafka Connect.
+<12> Metrics configuration that defines Prometheus JMX Exporter relabeling rules for Cruise Control.
+<13> Metrics configuration that defines Prometheus JMX Exporter relabeling rules for Kafka.
+<14> Metrics configuration that defines Prometheus JMX Exporter relabeling rules for MirrorMaker 2.
+<15> Metrics configuration that defines Prometheus JMX Exporter relabeling rules for OAuth 2.0.
 
 //Example Prometheus metrics files
 include::../../modules/metrics/ref-prometheus-metrics-config.adoc[leveloffset=+1]

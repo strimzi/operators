@@ -1,0 +1,53 @@
+// This assembly is included in the following assemblies:
+//
+// metrics/assembly_metrics-custom-resource-monitoring.adoc
+
+[id='proc-metrics-custom-resource-monitoring-{context}']
+
+= Custom resource monitoring
+
+[role="_abstract"]
+Use kube-state-metrics to provide custom resource monitoring.
+link:https://github.com/kubernetes/kube-state-metrics/[Kube-state-metrics^](KSM) is a scalable Kubernetes native service which listens to the Kubernetes API server and generates metrics about the state of the objects.
+Strimzi provides monitoring for the following custom resources via KSM: `KafkaUser` and `KafkaTopic`.
+
+You can use your own KSM deployment or deploy KSM using the xref:assembly-metrics-config-files-{context}[example metrics configuration files] provided by Strimzi.
+The example files include a configuration file for a KSM deployment
+
+* `examples/metrics/kube-state-metrics/ksm.yaml`
+
+NOTE: Update the namespace by replacing the example `myproject` with your own:
++
+On Linux, use:
++
+[source,shell,subs="+quotes,attributes+"]
+sed -E -i '/[[:space:]]\*namespace: [a-zA-Z0-9-]*$/s/namespace:[[:space:]]\*[a-zA-Z0-9-]*$/namespace: _myproject_/' examples/metrics/kube-state-metrics/ksm.yaml
++
+On MacOS, use:
++
+[source,shell,subs="+quotes,attributes+"]
+sed -i '' -e '/[[:space:]]\*namespace: [a-zA-Z0-9-]*$/s/namespace:[[:space:]]\*[a-zA-Z0-9-]*$/namespace: _myproject_/' examples/metrics/kube-state-metrics/ksm.yaml
++
+
+Strimzi also provides xref:ref-metrics-custom-resource-monitoring-{context}[example configuration ConfigMap for KSM].
+
+* `examples/metrics/kube-state-metrics/configmap.yaml`
+
+This procedure uses the example KSM deployment and configuration file.
+
+.Prerequisites
+* xref:assembly-metrics-prometheus-{context}[Prometheus and Prometheus Alertmanager are deployed]
+
+.Procedure
+
+. Deploy KSM.
++
+[source,shell,subs="+quotes,attributes"]
+kubectl apply -f configmap.yaml
+kubectl apply -f ksm.yaml
+
+After deploying KSM, you can check that all of these metrics get scraped by Prometheus via the provided `ServiceMonitor` in order to act on in Prometheus.
+
+Please check the provided `PrometheusRule` resources for alerting on these metrics:
+
+* `examples/metrics/kube-state-metrics/prometheus-rules.yaml`
