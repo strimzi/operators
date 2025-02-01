@@ -12,7 +12,7 @@ import java.util.Map;
 /**
  * Java representation of the JSON response from the /v1/broker-state endpoint of the KafkaAgent
  */
-class BrokerState {
+public class BrokerState {
     private static final int BROKER_RECOVERY_STATE = 2;
 
     private final int code;

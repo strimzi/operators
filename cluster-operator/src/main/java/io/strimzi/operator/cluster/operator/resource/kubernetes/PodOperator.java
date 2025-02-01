@@ -51,7 +51,7 @@ public class PodOperator extends AbstractReadyNamespacedResourceOperator<Kuberne
         String namespace = pod.getMetadata().getNamespace();
         String podName = pod.getMetadata().getName();
         Promise<Void> deleteFinished = Promise.promise();
-        LOGGER.infoCr(reconciliation, "Rolling pod {}", podName);
+        LOGGER.infoCr(reconciliation, "Deleting pod {}", podName);
 
         // Determine generation of deleted pod
         String deleted = getPodUid(pod);
@@ -66,7 +66,7 @@ public class PodOperator extends AbstractReadyNamespacedResourceOperator<Kuberne
                             boolean done = !deleted.equals(newUid);
 
                             if (done) {
-                                LOGGER.debugCr(reconciliation, "Rolling pod {} finished", podName);
+                                LOGGER.debugCr(reconciliation, "Deleting pod {} finished", podName);
                             }
 
                             return done;

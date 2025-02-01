@@ -38,7 +38,7 @@ public class KafkaBrokerLoggingConfigurationDiff extends AbstractJsonDiff {
      * @param brokerConfigs  Current broker configuration from Kafka Admin API
      * @param desired        Desired logging configuration
      */
-    protected KafkaBrokerLoggingConfigurationDiff(Reconciliation reconciliation, Config brokerConfigs, String desired) {
+    public KafkaBrokerLoggingConfigurationDiff(Reconciliation reconciliation, Config brokerConfigs, String desired) {
         this.reconciliation = reconciliation;
         this.diff = diff(desired, brokerConfigs);
     }
@@ -47,7 +47,7 @@ public class KafkaBrokerLoggingConfigurationDiff extends AbstractJsonDiff {
      * Returns logging difference
      * @return Collection of AlterConfigOp containing difference between current and desired logging configuration
      */
-    protected Collection<AlterConfigOp> getLoggingDiff() {
+    public Collection<AlterConfigOp> getLoggingDiff() {
         return diff;
     }
 
