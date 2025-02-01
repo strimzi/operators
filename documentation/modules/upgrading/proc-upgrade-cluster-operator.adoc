@@ -21,6 +21,9 @@ NOTE: Refer to the documentation supporting a specific version of Strimzi for in
 * You have xref:downloads-{context}[downloaded the release artifacts for Strimzi {ProductVersion}].
 * You need an account with permission to create and manage `CustomResourceDefinition` and RBAC (`ClusterRole`, and `RoleBinding`) resources.
 
+Currently, no feature gates require enabling or disabling before upgrading. 
+If a feature gate introduces such a requirement, the details will be provided here.
+
 .Procedure
 
 . Take note of any configuration changes made during the previous Cluster Operator installation.

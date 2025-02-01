@@ -24,10 +24,8 @@ include::assemblies/deploying/assembly-deploy-tasks.adoc[leveloffset=+1]
 include::modules/deploying/con-deploy-cluster-operator-from-operator-hub.adoc[leveloffset=+1]
 //Deployment using Helm
 include::modules/deploying/proc-deploy-cluster-operator-helm-chart.adoc[leveloffset=+1]
-//feature gates overview
+//feature gates
 include::modules/operators/ref-operator-cluster-feature-gates.adoc[leveloffset=+1]
-//feature gate release lifecycle
-include::modules/operators/ref-operator-cluster-feature-gate-releases.adoc[leveloffset=+2]
 //configuration of components
 include::assemblies/configuring/assembly-config.adoc[leveloffset=+1]
 //creating topics
