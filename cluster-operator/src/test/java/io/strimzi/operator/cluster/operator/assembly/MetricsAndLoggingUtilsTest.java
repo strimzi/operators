@@ -11,7 +11,7 @@ import io.strimzi.api.kafka.model.common.metrics.JmxPrometheusExporterMetricsBui
 import io.strimzi.api.kafka.model.connect.KafkaConnectSpec;
 import io.strimzi.api.kafka.model.connect.KafkaConnectSpecBuilder;
 import io.strimzi.operator.cluster.model.logging.LoggingModel;
-import io.strimzi.operator.cluster.model.metrics.MetricsModel;
+import io.strimzi.operator.cluster.model.metrics.JmxPrometheusExporterModel;
 import io.strimzi.operator.cluster.operator.resource.kubernetes.ConfigMapOperator;
 import io.strimzi.operator.common.Reconciliation;
 import io.vertx.core.Future;
@@ -40,7 +40,7 @@ public class MetricsAndLoggingUtilsTest {
     @Test
     public void testNoMetricsAndNoExternalLogging(VertxTestContext context)   {
         LoggingModel logging = new LoggingModel(new KafkaConnectSpec(), "KafkaConnectCluster", false, true);
-        MetricsModel metrics = new MetricsModel(new KafkaConnectSpecBuilder().build());
+        JmxPrometheusExporterModel metrics = new JmxPrometheusExporterModel(new KafkaConnectSpecBuilder().build());
 
         ConfigMapOperator mockCmOps = mock(ConfigMapOperator.class);
 
@@ -59,7 +59,7 @@ public class MetricsAndLoggingUtilsTest {
     @Test
     public void testMetricsAndExternalLogging(VertxTestContext context)   {
         LoggingModel logging = new LoggingModel(new KafkaConnectSpecBuilder().withLogging(new ExternalLoggingBuilder().withNewValueFrom().withConfigMapKeyRef(new ConfigMapKeySelector("log4j.properties", "logging-cm", false)).endValueFrom().build()).build(), "KafkaConnectCluster", false, true);
-        MetricsModel metrics = new MetricsModel(new KafkaConnectSpecBuilder().withMetricsConfig(new JmxPrometheusExporterMetricsBuilder().withNewValueFrom().withConfigMapKeyRef(new ConfigMapKeySelector("metrics.yaml", "metrics-cm", false)).endValueFrom().build()).build());
+        JmxPrometheusExporterModel metrics = new JmxPrometheusExporterModel(new KafkaConnectSpecBuilder().withMetricsConfig(new JmxPrometheusExporterMetricsBuilder().withNewValueFrom().withConfigMapKeyRef(new ConfigMapKeySelector("metrics.yaml", "metrics-cm", false)).endValueFrom().build()).build());
 
         ConfigMapOperator mockCmOps = mock(ConfigMapOperator.class);
         when(mockCmOps.getAsync(any(), eq("logging-cm"))).thenReturn(Future.succeededFuture(new ConfigMapBuilder().withNewMetadata().withName("logging-cm").endMetadata().withData(Map.of()).build()));
@@ -83,7 +83,7 @@ public class MetricsAndLoggingUtilsTest {
     @Test
     public void testNoMetricsAndExternalLogging(VertxTestContext context)   {
         LoggingModel logging = new LoggingModel(new KafkaConnectSpecBuilder().withLogging(new ExternalLoggingBuilder().withNewValueFrom().withConfigMapKeyRef(new ConfigMapKeySelector("log4j.properties", "logging-cm", false)).endValueFrom().build()).build(), "KafkaConnectCluster", false, true);
-        MetricsModel metrics = new MetricsModel(new KafkaConnectSpecBuilder().build());
+        JmxPrometheusExporterModel metrics = new JmxPrometheusExporterModel(new KafkaConnectSpecBuilder().build());
 
         ConfigMapOperator mockCmOps = mock(ConfigMapOperator.class);
         when(mockCmOps.getAsync(any(), eq("logging-cm"))).thenReturn(Future.succeededFuture(new ConfigMapBuilder().withNewMetadata().withName("logging-cm").endMetadata().withData(Map.of()).build()));
@@ -105,7 +105,7 @@ public class MetricsAndLoggingUtilsTest {
     @Test
     public void testMetricsAndNoExternalLogging(VertxTestContext context)   {
         LoggingModel logging = new LoggingModel(new KafkaConnectSpec(), "KafkaConnectCluster", false, true);
-        MetricsModel metrics = new MetricsModel(new KafkaConnectSpecBuilder().withMetricsConfig(new JmxPrometheusExporterMetricsBuilder().withNewValueFrom().withConfigMapKeyRef(new ConfigMapKeySelector("metrics.yaml", "metrics-cm", false)).endValueFrom().build()).build());
+        JmxPrometheusExporterModel metrics = new JmxPrometheusExporterModel(new KafkaConnectSpecBuilder().withMetricsConfig(new JmxPrometheusExporterMetricsBuilder().withNewValueFrom().withConfigMapKeyRef(new ConfigMapKeySelector("metrics.yaml", "metrics-cm", false)).endValueFrom().build()).build());
 
         ConfigMapOperator mockCmOps = mock(ConfigMapOperator.class);
         when(mockCmOps.getAsync(any(), eq("metrics-cm"))).thenReturn(Future.succeededFuture(new ConfigMapBuilder().withNewMetadata().withName("metrics-cm").endMetadata().withData(Map.of()).build()));

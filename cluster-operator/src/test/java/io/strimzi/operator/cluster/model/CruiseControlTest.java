@@ -1115,7 +1115,7 @@ public class CruiseControlTest {
         InvalidResourceException ex = assertThrows(InvalidResourceException.class, 
             () -> createCruiseControl(kafka, NODES, STORAGE, Map.of()));
 
-        assertThat(ex.getMessage(), is("The Strimzi Metrics Reporter is not supported for Cruise Control"));
+        assertThat(ex.getMessage(), is("The Strimzi Metrics Reporter is not supported with Cruise Control"));
     }
 
     @ParallelTest

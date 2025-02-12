@@ -8,6 +8,7 @@ import io.fabric8.kubernetes.api.model.ConfigMap;
 import io.strimzi.api.kafka.model.common.ExternalLogging;
 import io.strimzi.operator.cluster.model.MetricsAndLogging;
 import io.strimzi.operator.cluster.model.logging.LoggingModel;
+import io.strimzi.operator.cluster.model.metrics.JmxPrometheusExporterModel;
 import io.strimzi.operator.cluster.model.metrics.MetricsModel;
 import io.strimzi.operator.cluster.operator.resource.kubernetes.ConfigMapOperator;
 import io.strimzi.operator.common.Reconciliation;
@@ -42,8 +43,9 @@ public class MetricsAndLoggingUtils {
     }
 
     private static Future<ConfigMap> metricsConfigMap(Reconciliation reconciliation, ConfigMapOperator configMapOperations, MetricsModel metrics) {
-        if (metrics != null && metrics.isEnabled()) {
-            return configMapOperations.getAsync(reconciliation.namespace(), metrics.getConfigMapName());
+        // this is only for JMX Prometheus Exporter, because the Strimzi Metrics Reporter configuration is in the Kafka configuration file
+        if (metrics != null && metrics.isEnabled() && metrics instanceof JmxPrometheusExporterModel) {
+            return configMapOperations.getAsync(reconciliation.namespace(), ((JmxPrometheusExporterModel) metrics).getConfigMapName());
         } else {
             return Future.succeededFuture(null);
         }

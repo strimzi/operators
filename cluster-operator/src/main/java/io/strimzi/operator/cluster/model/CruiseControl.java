@@ -40,6 +40,7 @@ import io.strimzi.operator.cluster.model.cruisecontrol.CruiseControlConfiguratio
 import io.strimzi.operator.cluster.model.cruisecontrol.HashLoginServiceApiCredentials;
 import io.strimzi.operator.cluster.model.logging.LoggingModel;
 import io.strimzi.operator.cluster.model.logging.SupportsLogging;
+import io.strimzi.operator.cluster.model.metrics.JmxPrometheusExporterModel;
 import io.strimzi.operator.cluster.model.metrics.MetricsModel;
 import io.strimzi.operator.cluster.model.metrics.SupportsMetrics;
 import io.strimzi.operator.cluster.model.securityprofiles.ContainerSecurityProviderContextImpl;
@@ -114,14 +115,14 @@ public class CruiseControl extends AbstractModel implements SupportsMetrics, Sup
 
     // Configuration defaults
     protected static final boolean DEFAULT_CRUISE_CONTROL_METRICS_ENABLED = false;
-    
+
     private boolean sslEnabled;
     private boolean authEnabled;
     private HashLoginServiceApiCredentials apiCredentials;
     @SuppressFBWarnings({"UWF_FIELD_NOT_INITIALIZED_IN_CONSTRUCTOR"}) // This field is initialized in the fromCrd method
     protected Capacity capacity;
     @SuppressFBWarnings({"UWF_FIELD_NOT_INITIALIZED_IN_CONSTRUCTOR"}) // This field is initialized in the fromCrd method
-    private MetricsModel jmxExporterMetrics;
+    private JmxPrometheusExporterModel metrics;
     private LoggingModel logging;
     /* test */ CruiseControlConfiguration configuration;
 
@@ -222,13 +223,13 @@ public class CruiseControl extends AbstractModel implements SupportsMetrics, Sup
             result.jvmOptions = ccSpec.getJvmOptions();
 
             if (ccSpec.getMetricsConfig() instanceof JmxPrometheusExporterMetrics) {
-                result.jmxExporterMetrics = new MetricsModel(ccSpec);
+                result.metrics = new JmxPrometheusExporterModel(ccSpec);
             } else if (ccSpec.getMetricsConfig() instanceof StrimziMetricsReporter) {
                 // Cruise Control own metrics are only exported through JMX
-                LOGGER.errorCr(reconciliation, "The Strimzi Metrics Reporter is not supported for Cruise Control");
-                throw new InvalidResourceException("The Strimzi Metrics Reporter is not supported for Cruise Control");
+                LOGGER.errorCr(reconciliation, "The Strimzi Metrics Reporter is not supported with Cruise Control");
+                throw new InvalidResourceException("The Strimzi Metrics Reporter is not supported with Cruise Control");
             }
-            
+
             result.logging = new LoggingModel(ccSpec, result.getClass().getSimpleName(), true, false);
             result.resources = ccSpec.getResources();
 
@@ -246,6 +247,10 @@ public class CruiseControl extends AbstractModel implements SupportsMetrics, Sup
         } else {
             return null;
         }
+    }
+
+    private boolean hasMetricsConfig() {
+        return metrics != null && metrics.isEnabled();
     }
 
     private void updateConfigurationWithDefaults(CruiseControlSpec ccSpec, KafkaConfiguration kafkaConfiguration) {
@@ -317,7 +322,7 @@ public class CruiseControl extends AbstractModel implements SupportsMetrics, Sup
 
         portList.add(ContainerUtils.createContainerPort(REST_API_PORT_NAME, REST_API_PORT));
 
-        if (jmxExporterMetrics != null && jmxExporterMetrics.isEnabled()) {
+        if (hasMetricsConfig()) {
             portList.add(ContainerUtils.createContainerPort(MetricsModel.METRICS_PORT_NAME, MetricsModel.METRICS_PORT));
         }
 
@@ -405,7 +410,7 @@ public class CruiseControl extends AbstractModel implements SupportsMetrics, Sup
     protected List<EnvVar> getEnvVars() {
         List<EnvVar> varList = new ArrayList<>();
 
-        varList.add(ContainerUtils.createEnvVar(ENV_VAR_CRUISE_CONTROL_JMX_EXPORTER_ENABLED, jmxExporterMetrics != null && jmxExporterMetrics.isEnabled() ? Boolean.TRUE.toString() : Boolean.FALSE.toString()));
+        varList.add(ContainerUtils.createEnvVar(ENV_VAR_CRUISE_CONTROL_JMX_EXPORTER_ENABLED, hasMetricsConfig() ? Boolean.TRUE.toString() : Boolean.FALSE.toString()));
         varList.add(ContainerUtils.createEnvVar(ENV_VAR_STRIMZI_KAFKA_BOOTSTRAP_SERVERS, KafkaResources.bootstrapServiceName(cluster) + ":" + KafkaCluster.REPLICATION_PORT));
         varList.add(ContainerUtils.createEnvVar(ENV_VAR_STRIMZI_KAFKA_GC_LOG_ENABLED, String.valueOf(gcLoggingEnabled)));
 
@@ -464,15 +469,15 @@ public class CruiseControl extends AbstractModel implements SupportsMetrics, Sup
      * @param operatorNamespace                             Namespace where the Strimzi Cluster Operator runs. Null if not configured.
      * @param operatorNamespaceLabels                       Labels of the namespace where the Strimzi Cluster Operator runs. Null if not configured.
      * @param topicOperatorEnabled                          Whether to also enable access to Cruise Control from the Entity Operator.
-     *                                                      
+     *
      * @return The network policy.
      */
     public NetworkPolicy generateNetworkPolicy(String operatorNamespace, Labels operatorNamespaceLabels, boolean topicOperatorEnabled) {
         List<NetworkPolicyPeer> peers = new ArrayList<>(2);
-        NetworkPolicyPeer clusterOperatorPeer = NetworkPolicyUtils.createPeer(Map.of(Labels.STRIMZI_KIND_LABEL, "cluster-operator"), 
+        NetworkPolicyPeer clusterOperatorPeer = NetworkPolicyUtils.createPeer(Map.of(Labels.STRIMZI_KIND_LABEL, "cluster-operator"),
             NetworkPolicyUtils.clusterOperatorNamespaceSelector(namespace, operatorNamespace, operatorNamespaceLabels));
         peers.add(clusterOperatorPeer);
-        
+
         if (topicOperatorEnabled) {
             NetworkPolicyPeer entityOperatorPeer = NetworkPolicyUtils.createPeer(Map.of(Labels.STRIMZI_NAME_LABEL, format("%s-entity-operator", cluster)),
                 NetworkPolicyUtils.clusterOperatorNamespaceSelector(namespace, operatorNamespace, operatorNamespaceLabels));
@@ -486,7 +491,7 @@ public class CruiseControl extends AbstractModel implements SupportsMetrics, Sup
         rules.add(NetworkPolicyUtils.createIngressRule(REST_API_PORT, peers));
 
         // Everyone can access metrics
-        if (jmxExporterMetrics != null && jmxExporterMetrics.isEnabled()) {
+        if (hasMetricsConfig()) {
             rules.add(NetworkPolicyUtils.createIngressRule(MetricsModel.METRICS_PORT, List.of()));
         }
 
@@ -510,8 +515,8 @@ public class CruiseControl extends AbstractModel implements SupportsMetrics, Sup
     /**
      * @return  Metrics Model instance for configuring Prometheus metrics
      */
-    public MetricsModel metrics()   {
-        return jmxExporterMetrics;
+    public JmxPrometheusExporterModel metrics()   {
+        return metrics;
     }
 
     /**

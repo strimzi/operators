@@ -15,38 +15,28 @@ import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 
 /**
- * Represents a model for components with configurable metrics using Strimzi Reporter
+ * Model for the Strimzi Metrics Reporter Kafka plugin.
  */
-public class StrimziMetricsReporterModel {
+public class StrimziMetricsReporterModel implements MetricsModel {
     /**
-     * Fully Qualified Class Name of the Strimzi Kafka Prometheus Metrics Reporter.
+     * Fully qualified class name of the Strimzi Kafka Prometheus Metrics Reporter.
      */
     public static final String KAFKA_PROMETHEUS_METRICS_REPORTER = "io.strimzi.kafka.metrics.KafkaPrometheusMetricsReporter";
 
-    /**
-     * Name of the Strimzi metrics port
-     */
-    public static final String METRICS_PORT_NAME = "tcp-prometheus";
-
-    /**
-     * Number of the Strimzi metrics port
-     */
-    public static final int METRICS_PORT = 9404;
     private final boolean isEnabled;
     private final List<String> allowList;
 
     /**
-     * Constructs the StrimziMetricsReporterModel for managing configurable metrics with Strimzi Reporter
+     * Constructs the Metrics Model for managing configurable metrics to Strimzi.
      *
-     * @param spec StrimziReporterMetrics object containing the metrics configuration
+     * @param spec Custom resource section configuring metrics.
      */
     public StrimziMetricsReporterModel(HasConfigurableMetrics spec) {
         if (spec.getMetricsConfig() != null) {
             if (spec.getMetricsConfig() instanceof StrimziMetricsReporter config) {
                 validate(config);
                 this.isEnabled = true;
-                this.allowList = config.getValues() != null &&
-                        config.getValues().getAllowList() != null
+                this.allowList = config.getValues() != null && config.getValues().getAllowList() != null
                         ? config.getValues().getAllowList() : null;
             } else {
                 throw new InvalidResourceException("Unsupported metrics type " + spec.getMetricsConfig().getType());
@@ -57,17 +47,23 @@ public class StrimziMetricsReporterModel {
         }
     }
 
-    /**
-     * @return True if metrics are enabled. False otherwise.
-     */
+    @Override
     public boolean isEnabled() {
         return isEnabled;
     }
 
     /**
-     * Validates the Strimzi Metrics Reporter configuration
+     * @return Comma separated list of allow regex expressions.
+     */
+    public Optional<String> getAllowList() {
+        return allowList != null ? Optional.of(String.join(",", allowList)) : Optional.empty();
+    }
+
+    /**
+     * Validates user configuration.
      *
-     * @param config StrimziReporterMetrics configuration to validate
+     * @param config Config to be validated.
+     *
      */
     /* test */ static void validate(StrimziMetricsReporter config) {
         List<String> errors = new ArrayList<>();
@@ -75,25 +71,18 @@ public class StrimziMetricsReporterModel {
             if (config.getValues().getAllowList().isEmpty()) {
                 errors.add("Allowlist should contain at least one element");
             }
+
             for (String regex : config.getValues().getAllowList()) {
                 try {
                     Pattern.compile(regex);
-                } catch (PatternSyntaxException e) {
-                    errors.add(String.format("Invalid regex: %s, %s", regex, e.getDescription()));
+                } catch (PatternSyntaxException pse) {
+                    errors.add(String.format("Invalid regex: %s, %s", regex, pse.getDescription()));
                 }
             }
         }
+
         if (!errors.isEmpty()) {
             throw new InvalidResourceException("Metrics configuration is invalid: " + errors);
         }
-    }
-
-    /**
-     * Returns the allowlist as a comma-separated string wrapped in an Optional.
-     *
-     * @return an Optional containing the comma-separated allowlist if it is not null, otherwise an empty Optional
-     */
-    public Optional<String> getAllowList() {
-        return allowList != null ? Optional.of(String.join(",", allowList)) : Optional.empty();
     }
 }

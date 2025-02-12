@@ -65,6 +65,7 @@ import io.strimzi.operator.cluster.model.jmx.SupportsJmx;
 import io.strimzi.operator.cluster.model.logging.LoggingModel;
 import io.strimzi.operator.cluster.model.logging.LoggingUtils;
 import io.strimzi.operator.cluster.model.logging.SupportsLogging;
+import io.strimzi.operator.cluster.model.metrics.JmxPrometheusExporterModel;
 import io.strimzi.operator.cluster.model.metrics.MetricsModel;
 import io.strimzi.operator.cluster.model.metrics.SupportsMetrics;
 import io.strimzi.operator.cluster.model.securityprofiles.ContainerSecurityProviderContextImpl;
@@ -142,7 +143,7 @@ public class KafkaConnectCluster extends AbstractModel implements SupportsMetric
     protected List<ExternalConfigurationVolumeSource> externalVolumes = Collections.emptyList();
     protected Tracing tracing;
     protected JmxModel jmx;
-    protected MetricsModel jmxExporterMetrics;
+    protected JmxPrometheusExporterModel metrics;
     protected LoggingModel logging;
     protected AbstractConfiguration configuration;
 
@@ -257,10 +258,10 @@ public class KafkaConnectCluster extends AbstractModel implements SupportsMetric
         result.jvmOptions = spec.getJvmOptions();
 
         if (spec.getMetricsConfig() instanceof JmxPrometheusExporterMetrics) {
-            result.jmxExporterMetrics = new MetricsModel(spec);
+            result.metrics = new JmxPrometheusExporterModel(spec);
         } else if (spec.getMetricsConfig() instanceof StrimziMetricsReporter) {
-            LOGGER.errorCr(reconciliation, "The Strimzi Metrics Reporter is not supported for this component");
-            throw new InvalidResourceException("The Strimzi Metrics Reporter is not supported for this component");
+            LOGGER.errorCr(reconciliation, "The Strimzi Metrics Reporter is not supported with this component");
+            throw new InvalidResourceException("The Strimzi Metrics Reporter is not supported with this component");
         }
         
         result.logging = new LoggingModel(spec, result.getClass().getSimpleName(), false, true);
@@ -368,7 +369,7 @@ public class KafkaConnectCluster extends AbstractModel implements SupportsMetric
     protected List<ContainerPort> getContainerPortList() {
         List<ContainerPort> portList = new ArrayList<>(2);
         portList.add(ContainerUtils.createContainerPort(REST_API_PORT_NAME, REST_API_PORT));
-        if (jmxExporterMetrics != null && jmxExporterMetrics.isEnabled()) {
+        if (metrics != null && metrics.isEnabled()) {
             portList.add(ContainerUtils.createContainerPort(MetricsModel.METRICS_PORT_NAME, MetricsModel.METRICS_PORT));
         }
 
@@ -621,7 +622,7 @@ public class KafkaConnectCluster extends AbstractModel implements SupportsMetric
     protected List<EnvVar> getEnvVars() {
         List<EnvVar> varList = new ArrayList<>();
         varList.add(ContainerUtils.createEnvVar(ENV_VAR_KAFKA_CONNECT_CONFIGURATION, configuration.getConfiguration()));
-        String jmxMetricsEnabled = jmxExporterMetrics != null && jmxExporterMetrics.isEnabled() ? Boolean.TRUE.toString() : Boolean.FALSE.toString();
+        String jmxMetricsEnabled = metrics != null && metrics.isEnabled() ? Boolean.TRUE.toString() : Boolean.FALSE.toString();
         varList.add(ContainerUtils.createEnvVar(ENV_VAR_KAFKA_CONNECT_JMX_EXPORTER_ENABLED, jmxMetricsEnabled));
         varList.add(ContainerUtils.createEnvVar(ENV_VAR_KAFKA_CONNECT_BOOTSTRAP_SERVERS, bootstrapServers));
         varList.add(ContainerUtils.createEnvVar(ENV_VAR_STRIMZI_KAFKA_GC_LOG_ENABLED, String.valueOf(gcLoggingEnabled)));
@@ -770,7 +771,7 @@ public class KafkaConnectCluster extends AbstractModel implements SupportsMetric
             rules.add(NetworkPolicyUtils.createIngressRule(REST_API_PORT, List.of(connectPeer, clusterOperatorPeer)));
 
             // The Metrics port (if enabled) is opened to all by default
-            if (jmxExporterMetrics != null && jmxExporterMetrics.isEnabled()) {
+            if (metrics != null && metrics.isEnabled()) {
                 rules.add(NetworkPolicyUtils.createIngressRule(MetricsModel.METRICS_PORT, List.of()));
             }
 
@@ -882,7 +883,7 @@ public class KafkaConnectCluster extends AbstractModel implements SupportsMetric
      * @return  Metrics Model instance for configuring Prometheus metrics
      */
     public MetricsModel metrics()   {
-        return jmxExporterMetrics;
+        return metrics;
     }
 
     /**
