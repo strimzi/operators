@@ -30,6 +30,7 @@ import io.strimzi.api.kafka.model.kafka.tieredstorage.TieredStorageCustom;
 import io.strimzi.kafka.oauth.server.ServerConfig;
 import io.strimzi.kafka.oauth.server.plain.ServerPlainConfig;
 import io.strimzi.operator.cluster.model.cruisecontrol.CruiseControlMetricsReporter;
+import io.strimzi.operator.cluster.model.metrics.StrimziMetricsReporterModel;
 import io.strimzi.operator.common.Reconciliation;
 import io.strimzi.operator.common.model.cruisecontrol.CruiseControlConfigurationParameters;
 
@@ -59,7 +60,6 @@ public class KafkaBrokerConfigurationBuilder {
     // Names of environment variables expanded through config providers inside the Kafka node
     private final static String PLACEHOLDER_CERT_STORE_PASSWORD_CONFIG_PROVIDER_ENV_VAR = "${strimzienv:CERTS_STORE_PASSWORD}";
     private final static String PLACEHOLDER_OAUTH_CLIENT_SECRET_TEMPLATE_CONFIG_PROVIDER_ENV_VAR = "${strimzienv:STRIMZI_%s_OAUTH_CLIENT_SECRET}";
-
     private final StringWriter stringWriter = new StringWriter();
     private final PrintWriter writer = new PrintWriter(stringWriter);
     private final Reconciliation reconciliation;
@@ -128,6 +128,26 @@ public class KafkaBrokerConfigurationBuilder {
                 writer.println(CruiseControlConfigurationParameters.METRICS_TOPIC_MIN_ISR + "=" + ccMetricsReporter.minInSyncReplicas());
             }
 
+            writer.println();
+        }
+
+        return this;
+    }
+
+    /**
+     * Configures the Strimzi Metrics Reporter. It is set only if user enabled Strimzi Metrics Reporter.
+     *
+     * @param model     Strimzi Metrics Reporter configuration
+     *
+     * @return Returns the builder instance
+     */
+    public KafkaBrokerConfigurationBuilder withStrimziMetricsReporter(StrimziMetricsReporterModel model)   {
+        if (model != null && model.isEnabled()) {
+            printSectionHeader("Strimzi Metrics Reporter configuration");
+            writer.println("kafka.metrics.reporters=io.strimzi.kafka.metrics.YammerPrometheusMetricsReporter");
+            writer.println("prometheus.metrics.reporter.listener.enable=true");
+            writer.println("prometheus.metrics.reporter.listener=http://0.0.0.0:" + StrimziMetricsReporterModel.METRICS_PORT);
+            model.getAllowList().ifPresent(allowList -> writer.println("prometheus.metrics.reporter.allowlist=" + allowList));
             writer.println();
         }
 
@@ -286,7 +306,6 @@ public class KafkaBrokerConfigurationBuilder {
         ////////////////////
         // Shared configurations with values dependent on all listeners
         ////////////////////
-
         // configure OAuth principal builder for all the nodes - brokers, controllers, and mixed
         configureOAuthPrincipalBuilderIfNeeded(writer, kafkaListeners);
 
@@ -787,28 +806,33 @@ public class KafkaBrokerConfigurationBuilder {
     /**
      * Configures the configuration options passed by the user in the Kafka CR.
      *
-     * @param userConfig                The User configuration - Kafka broker configuration options specified by the user in the Kafka custom resource
-     * @param injectCcMetricsReporter   Inject the Cruise Control Metrics Reporter into the configuration
+     * @param userConfig                     The User configuration - Kafka broker configuration options specified by the user in the Kafka custom resource
+     * @param injectCcMetricsReporter        Inject the Cruise Control Metrics Reporter into the configuration
+     * @param injectStrimziMetricsReporter   Inject the Strimzi Metrics Reporter into the configuration
      *
      * @return Returns the builder instance
      */
-    public KafkaBrokerConfigurationBuilder withUserConfiguration(KafkaConfiguration userConfig, boolean injectCcMetricsReporter)  {
+    public KafkaBrokerConfigurationBuilder withUserConfiguration(KafkaConfiguration userConfig, boolean injectCcMetricsReporter, boolean injectStrimziMetricsReporter)  {
         if (userConfig != null && !userConfig.getConfiguration().isEmpty()) {
-            // We have to create a copy of the configuration before we modify it
+            // We have to create a copy of the configuration before we modify it, to avoid modifying the original input.
             userConfig = new KafkaConfiguration(userConfig);
 
             // Configure the configuration providers => we have to inject the Strimzi ones
             configProviders(userConfig);
 
-            if (injectCcMetricsReporter)  {
-                // We configure the Cruise Control Metrics Reporter is needed
-                if (userConfig.getConfigOption(CruiseControlMetricsReporter.KAFKA_METRIC_REPORTERS_CONFIG_FIELD) != null) {
-                    if (!userConfig.getConfigOption(CruiseControlMetricsReporter.KAFKA_METRIC_REPORTERS_CONFIG_FIELD).contains(CruiseControlMetricsReporter.CRUISE_CONTROL_METRIC_REPORTER)) {
-                        userConfig.setConfigOption(CruiseControlMetricsReporter.KAFKA_METRIC_REPORTERS_CONFIG_FIELD, userConfig.getConfigOption(CruiseControlMetricsReporter.KAFKA_METRIC_REPORTERS_CONFIG_FIELD) + "," + CruiseControlMetricsReporter.CRUISE_CONTROL_METRIC_REPORTER);
-                    }
-                } else {
-                    userConfig.setConfigOption(CruiseControlMetricsReporter.KAFKA_METRIC_REPORTERS_CONFIG_FIELD, CruiseControlMetricsReporter.CRUISE_CONTROL_METRIC_REPORTER);
-                }
+            // Handle all combinations of metric.reporters
+            String metricReporters = userConfig.getConfigOption(KafkaCluster.KAFKA_METRIC_REPORTERS_CONFIG_FIELD);
+
+            // If the injectCcMetricsReporter / injectStrimziMetricsReporter flag is set to true, it is appended to the list of metric reporters
+            if (injectCcMetricsReporter) {
+                metricReporters = appendMetricReporter(metricReporters, CruiseControlMetricsReporter.CRUISE_CONTROL_METRIC_REPORTER);
+            }
+            if (injectStrimziMetricsReporter) {
+                metricReporters = appendMetricReporter(metricReporters, StrimziMetricsReporterModel.KAFKA_PROMETHEUS_METRICS_REPORTER);
+            }
+            if (metricReporters != null) {
+                // update the userConfig with the new list of metric reporters
+                userConfig.setConfigOption(KafkaCluster.KAFKA_METRIC_REPORTERS_CONFIG_FIELD, metricReporters);
             }
 
             printSectionHeader("User provided configuration");
@@ -818,15 +842,37 @@ public class KafkaBrokerConfigurationBuilder {
             // Configure the configuration providers => we have to inject the Strimzi ones
             configProviders(userConfig);
 
-            if (injectCcMetricsReporter) {
-                // There is no user provided configuration. But we still need to inject the Cruise Control Metrics Reporter
-                printSectionHeader("Cruise Control Metrics Reporter");
-                writer.println(CruiseControlMetricsReporter.KAFKA_METRIC_REPORTERS_CONFIG_FIELD + "=" + CruiseControlMetricsReporter.CRUISE_CONTROL_METRIC_REPORTER);
+            // There is no user provided configuration
+            if (injectCcMetricsReporter || injectStrimziMetricsReporter) {
+                printSectionHeader("CruiseControl Metrics Reporters and Strimzi Metrics Reporters");
+                String metricReporters = null;
+                if (injectCcMetricsReporter) {
+                    metricReporters = CruiseControlMetricsReporter.CRUISE_CONTROL_METRIC_REPORTER;
+                }
+                if (injectStrimziMetricsReporter) {
+                    metricReporters = appendMetricReporter(metricReporters, StrimziMetricsReporterModel.KAFKA_PROMETHEUS_METRICS_REPORTER);
+                }
+                writer.println(KafkaCluster.KAFKA_METRIC_REPORTERS_CONFIG_FIELD + "=" + metricReporters);
                 writer.println();
             }
         }
 
         return this;
+    }
+
+    /**
+     * Appends a new metric reporter to the existing list of metric reporters.
+     *
+     * @param existingReporters The existing list of metric reporters, as a comma-separated string.
+     * @param newReporter The new metric reporter to add to the list.
+     * @return A comma-separated string containing the existing metric reporters and the new metric reporter.
+     */
+    private String appendMetricReporter(String existingReporters, String newReporter) {
+        if (existingReporters == null || existingReporters.isEmpty()) {
+            return newReporter;
+        } else {
+            return existingReporters + "," + newReporter;
+        }
     }
 
     /**

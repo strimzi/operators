@@ -67,7 +67,7 @@ public class ConfigMapUtils {
             data.put(supportsLogging.logging().configMapKey(), supportsLogging.logging().loggingConfiguration(reconciliation, metricsAndLogging.loggingCm()));
         }
 
-        if (model instanceof SupportsMetrics supportMetrics) {
+        if (model instanceof SupportsMetrics supportMetrics && supportMetrics.metrics() != null) {
             String parseResult = supportMetrics.metrics().metricsJson(reconciliation, metricsAndLogging.metricsCm());
             if (parseResult != null) {
                 data.put(MetricsModel.CONFIG_MAP_KEY, parseResult);

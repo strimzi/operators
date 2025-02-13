@@ -6,6 +6,7 @@
 * Support for MirrorMaker 1 has been removed
 * Support for storage class overrides has been removed
 * Added support to configure `dnsPolicy` and `dnsConfig` using the `template` sections.
+* Added support for Strimzi Metrics Reporter to the Kafka component.
 * Store Kafka node certificates in separate Secrets, one Secret per pod.
 * Allow configuring `ssl.principal.mapping.rules` and custom trusted CAs in Kafka brokers with `type: custom` authentication
 * Moved HTTP bridge configuration to the ConfigMap setup by the operator.

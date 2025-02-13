@@ -21,6 +21,8 @@ import io.fabric8.kubernetes.api.model.networking.v1.NetworkPolicy;
 import io.fabric8.kubernetes.api.model.networking.v1.NetworkPolicyIngressRule;
 import io.fabric8.kubernetes.api.model.networking.v1.NetworkPolicyPeer;
 import io.strimzi.api.kafka.model.common.JvmOptions;
+import io.strimzi.api.kafka.model.common.metrics.JmxPrometheusExporterMetrics;
+import io.strimzi.api.kafka.model.common.metrics.StrimziMetricsReporter;
 import io.strimzi.api.kafka.model.common.template.DeploymentTemplate;
 import io.strimzi.api.kafka.model.common.template.InternalServiceTemplate;
 import io.strimzi.api.kafka.model.common.template.PodTemplate;
@@ -45,6 +47,7 @@ import io.strimzi.operator.cluster.model.securityprofiles.PodSecurityProviderCon
 import io.strimzi.operator.common.Annotations;
 import io.strimzi.operator.common.Reconciliation;
 import io.strimzi.operator.common.Util;
+import io.strimzi.operator.common.model.InvalidResourceException;
 import io.strimzi.operator.common.model.Labels;
 import io.strimzi.operator.common.model.cruisecontrol.CruiseControlApiProperties;
 import io.strimzi.operator.common.model.cruisecontrol.CruiseControlConfigurationParameters;
@@ -95,7 +98,7 @@ public class CruiseControl extends AbstractModel implements SupportsMetrics, Sup
      */
     public static final String API_AUTH_CREDENTIALS_FILE = API_AUTH_CONFIG_VOLUME_MOUNT + CruiseControlApiProperties.AUTH_FILE_KEY;
 
-    protected static final String ENV_VAR_CRUISE_CONTROL_METRICS_ENABLED = "CRUISE_CONTROL_METRICS_ENABLED";
+    protected static final String ENV_VAR_CRUISE_CONTROL_JMX_EXPORTER_ENABLED = "CRUISE_CONTROL_JMX_EXPORTER_ENABLED";
 
     /**
      * Annotation for rolling a cluster whenever the server configuration has changed.
@@ -118,7 +121,7 @@ public class CruiseControl extends AbstractModel implements SupportsMetrics, Sup
     @SuppressFBWarnings({"UWF_FIELD_NOT_INITIALIZED_IN_CONSTRUCTOR"}) // This field is initialized in the fromCrd method
     protected Capacity capacity;
     @SuppressFBWarnings({"UWF_FIELD_NOT_INITIALIZED_IN_CONSTRUCTOR"}) // This field is initialized in the fromCrd method
-    private MetricsModel metrics;
+    private MetricsModel jmxExporterMetrics;
     private LoggingModel logging;
     /* test */ CruiseControlConfiguration configuration;
 
@@ -217,7 +220,15 @@ public class CruiseControl extends AbstractModel implements SupportsMetrics, Sup
             result.livenessProbeOptions = ProbeUtils.extractLivenessProbeOptionsOrDefault(ccSpec, ProbeUtils.DEFAULT_HEALTHCHECK_OPTIONS);
             result.gcLoggingEnabled = ccSpec.getJvmOptions() == null ? JvmOptions.DEFAULT_GC_LOGGING_ENABLED : ccSpec.getJvmOptions().isGcLoggingEnabled();
             result.jvmOptions = ccSpec.getJvmOptions();
-            result.metrics = new MetricsModel(ccSpec);
+
+            if (ccSpec.getMetricsConfig() instanceof JmxPrometheusExporterMetrics) {
+                result.jmxExporterMetrics = new MetricsModel(ccSpec);
+            } else if (ccSpec.getMetricsConfig() instanceof StrimziMetricsReporter) {
+                // Cruise Control own metrics are only exported through JMX
+                LOGGER.errorCr(reconciliation, "The Strimzi Metrics Reporter is not supported for Cruise Control");
+                throw new InvalidResourceException("The Strimzi Metrics Reporter is not supported for Cruise Control");
+            }
+            
             result.logging = new LoggingModel(ccSpec, result.getClass().getSimpleName(), true, false);
             result.resources = ccSpec.getResources();
 
@@ -306,7 +317,7 @@ public class CruiseControl extends AbstractModel implements SupportsMetrics, Sup
 
         portList.add(ContainerUtils.createContainerPort(REST_API_PORT_NAME, REST_API_PORT));
 
-        if (metrics.isEnabled()) {
+        if (jmxExporterMetrics != null && jmxExporterMetrics.isEnabled()) {
             portList.add(ContainerUtils.createContainerPort(MetricsModel.METRICS_PORT_NAME, MetricsModel.METRICS_PORT));
         }
 
@@ -394,7 +405,8 @@ public class CruiseControl extends AbstractModel implements SupportsMetrics, Sup
     protected List<EnvVar> getEnvVars() {
         List<EnvVar> varList = new ArrayList<>();
 
-        varList.add(ContainerUtils.createEnvVar(ENV_VAR_CRUISE_CONTROL_METRICS_ENABLED, String.valueOf(metrics.isEnabled())));
+        String jmxMetricsEnabled = jmxExporterMetrics != null && jmxExporterMetrics.isEnabled() ? Boolean.TRUE.toString() : Boolean.FALSE.toString();
+        varList.add(ContainerUtils.createEnvVar(ENV_VAR_CRUISE_CONTROL_JMX_EXPORTER_ENABLED, jmxMetricsEnabled));
         varList.add(ContainerUtils.createEnvVar(ENV_VAR_STRIMZI_KAFKA_BOOTSTRAP_SERVERS, KafkaResources.bootstrapServiceName(cluster) + ":" + KafkaCluster.REPLICATION_PORT));
         varList.add(ContainerUtils.createEnvVar(ENV_VAR_STRIMZI_KAFKA_GC_LOG_ENABLED, String.valueOf(gcLoggingEnabled)));
 
@@ -475,7 +487,7 @@ public class CruiseControl extends AbstractModel implements SupportsMetrics, Sup
         rules.add(NetworkPolicyUtils.createIngressRule(REST_API_PORT, peers));
 
         // Everyone can access metrics
-        if (metrics.isEnabled()) {
+        if (jmxExporterMetrics != null && jmxExporterMetrics.isEnabled()) {
             rules.add(NetworkPolicyUtils.createIngressRule(MetricsModel.METRICS_PORT, List.of()));
         }
 
@@ -500,7 +512,7 @@ public class CruiseControl extends AbstractModel implements SupportsMetrics, Sup
      * @return  Metrics Model instance for configuring Prometheus metrics
      */
     public MetricsModel metrics()   {
-        return metrics;
+        return jmxExporterMetrics;
     }
 
     /**

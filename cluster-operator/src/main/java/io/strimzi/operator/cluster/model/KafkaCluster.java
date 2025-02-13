@@ -41,6 +41,8 @@ import io.fabric8.openshift.api.model.RouteBuilder;
 import io.strimzi.api.kafka.model.common.CertAndKeySecretSource;
 import io.strimzi.api.kafka.model.common.Condition;
 import io.strimzi.api.kafka.model.common.Rack;
+import io.strimzi.api.kafka.model.common.metrics.JmxPrometheusExporterMetrics;
+import io.strimzi.api.kafka.model.common.metrics.StrimziMetricsReporter;
 import io.strimzi.api.kafka.model.common.template.ContainerTemplate;
 import io.strimzi.api.kafka.model.common.template.ExternalTrafficPolicy;
 import io.strimzi.api.kafka.model.common.template.InternalServiceTemplate;
@@ -75,6 +77,7 @@ import io.strimzi.operator.cluster.model.jmx.SupportsJmx;
 import io.strimzi.operator.cluster.model.logging.LoggingModel;
 import io.strimzi.operator.cluster.model.logging.SupportsLogging;
 import io.strimzi.operator.cluster.model.metrics.MetricsModel;
+import io.strimzi.operator.cluster.model.metrics.StrimziMetricsReporterModel;
 import io.strimzi.operator.cluster.model.metrics.SupportsMetrics;
 import io.strimzi.operator.cluster.model.securityprofiles.ContainerSecurityProviderContextImpl;
 import io.strimzi.operator.cluster.model.securityprofiles.PodSecurityProviderContextImpl;
@@ -114,7 +117,7 @@ public class KafkaCluster extends AbstractModel implements SupportsMetrics, Supp
     public static final String COMPONENT_TYPE = "kafka";
 
     protected static final String ENV_VAR_KAFKA_INIT_EXTERNAL_ADDRESS = "EXTERNAL_ADDRESS";
-    private static final String ENV_VAR_KAFKA_METRICS_ENABLED = "KAFKA_METRICS_ENABLED";
+    private static final String ENV_VAR_KAFKA_JMX_EXPORTER_ENABLED = "KAFKA_JMX_EXPORTER_ENABLED";
     private static final String ENV_VAR_STRIMZI_OPA_AUTHZ_TRUSTED_CERTS = "STRIMZI_OPA_AUTHZ_TRUSTED_CERTS";
     private static final String ENV_VAR_STRIMZI_KEYCLOAK_AUTHZ_TRUSTED_CERTS = "STRIMZI_KEYCLOAK_AUTHZ_TRUSTED_CERTS";
 
@@ -225,7 +228,8 @@ public class KafkaCluster extends AbstractModel implements SupportsMetrics, Supp
     private String clusterId;
     private JmxModel jmx;
     private CruiseControlMetricsReporter ccMetricsReporter;
-    private MetricsModel metrics;
+    private MetricsModel jmxExporterMetrics;
+    private StrimziMetricsReporterModel strimziMetricsReporter;
     private LoggingModel logging;
     private QuotasPlugin quotas;
     /* test */ KafkaConfiguration configuration;
@@ -286,6 +290,7 @@ public class KafkaCluster extends AbstractModel implements SupportsMetrics, Supp
      *
      * @return Kafka cluster instance
      */
+    @SuppressWarnings("NPathComplexity")
     public static KafkaCluster fromCrd(Reconciliation reconciliation,
                                        Kafka kafka,
                                        List<KafkaPool> pools,
@@ -295,9 +300,7 @@ public class KafkaCluster extends AbstractModel implements SupportsMetrics, Supp
                                        SharedEnvironmentProvider sharedEnvironmentProvider) {
         KafkaSpec kafkaSpec = kafka.getSpec();
         KafkaClusterSpec kafkaClusterSpec = kafkaSpec.getKafka();
-
         KafkaCluster result = new KafkaCluster(reconciliation, kafka, sharedEnvironmentProvider);
-
         result.clusterId = clusterId;
         result.nodePools = pools;
 
@@ -330,7 +333,12 @@ public class KafkaCluster extends AbstractModel implements SupportsMetrics, Supp
         }
         result.initImage = initImage;
 
-        result.metrics = new MetricsModel(kafkaClusterSpec);
+        if (kafkaClusterSpec.getMetricsConfig() instanceof JmxPrometheusExporterMetrics) {
+            result.jmxExporterMetrics = new MetricsModel(kafkaClusterSpec);
+        } else if (kafkaClusterSpec.getMetricsConfig() instanceof StrimziMetricsReporter) {
+            result.strimziMetricsReporter = new StrimziMetricsReporterModel(kafkaClusterSpec);
+        }
+
         result.logging = new LoggingModel(kafkaClusterSpec, result.getClass().getSimpleName(), false, true);
 
         result.jmx = new JmxModel(
@@ -1309,8 +1317,10 @@ public class KafkaCluster extends AbstractModel implements SupportsMetrics, Supp
         }
 
         // Metrics port is enabled on all node types regardless their role
-        if (metrics.isEnabled()) {
+        if (jmxExporterMetrics != null && jmxExporterMetrics.isEnabled()) {
             ports.add(ContainerUtils.createContainerPort(MetricsModel.METRICS_PORT_NAME, MetricsModel.METRICS_PORT));
+        } else if (strimziMetricsReporter != null && strimziMetricsReporter.isEnabled()) {
+            ports.add(ContainerUtils.createContainerPort(StrimziMetricsReporterModel.METRICS_PORT_NAME, StrimziMetricsReporterModel.METRICS_PORT));
         }
 
         // JMX port is enabled on all node types regardless their role
@@ -1506,12 +1516,12 @@ public class KafkaCluster extends AbstractModel implements SupportsMetrics, Supp
         if (authorization instanceof KafkaAuthorizationKeycloak keycloakAuthz) {
             CertUtils.createTrustedCertificatesVolumeMounts(volumeMountList, keycloakAuthz.getTlsTrustedCertificates(), TRUSTED_CERTS_BASE_VOLUME_MOUNT + "/authz-keycloak-certs/", "authz-keycloak");
         }
-        
+
         TemplateUtils.addAdditionalVolumeMounts(volumeMountList, containerTemplate);
 
         return volumeMountList;
     }
-    
+
     private List<VolumeMount> getInitContainerVolumeMounts(KafkaPool pool) {
         List<VolumeMount> volumeMountList = new ArrayList<>();
         volumeMountList.add(VolumeUtils.createVolumeMount(INIT_VOLUME_NAME, INIT_VOLUME_MOUNT));
@@ -1626,7 +1636,8 @@ public class KafkaCluster extends AbstractModel implements SupportsMetrics, Supp
      */
     private  List<EnvVar> getEnvVars(KafkaPool pool) {
         List<EnvVar> varList = new ArrayList<>();
-        varList.add(ContainerUtils.createEnvVar(ENV_VAR_KAFKA_METRICS_ENABLED, String.valueOf(metrics.isEnabled())));
+        String jmxMetricsEnabled = jmxExporterMetrics != null && jmxExporterMetrics.isEnabled() ? Boolean.TRUE.toString() : Boolean.FALSE.toString();
+        varList.add(ContainerUtils.createEnvVar(ENV_VAR_KAFKA_JMX_EXPORTER_ENABLED, jmxMetricsEnabled));
         varList.add(ContainerUtils.createEnvVar(ENV_VAR_STRIMZI_KAFKA_GC_LOG_ENABLED, String.valueOf(pool.gcLoggingEnabled)));
 
         JvmOptionUtils.heapOptions(varList, 50, 5L * 1024L * 1024L * 1024L, pool.jvmOptions, pool.resources);
@@ -1738,8 +1749,10 @@ public class KafkaCluster extends AbstractModel implements SupportsMetrics, Supp
         }
 
         // The Metrics port (if enabled) is opened to all by default
-        if (metrics.isEnabled()) {
+        if (jmxExporterMetrics != null && jmxExporterMetrics.isEnabled()) {
             rules.add(NetworkPolicyUtils.createIngressRule(MetricsModel.METRICS_PORT, List.of()));
+        } else if (strimziMetricsReporter != null && strimziMetricsReporter.isEnabled()) {
+            rules.add(NetworkPolicyUtils.createIngressRule(StrimziMetricsReporterModel.METRICS_PORT, List.of()));
         }
 
         // The JMX port (if enabled) is opened to all by default
@@ -1838,9 +1851,10 @@ public class KafkaCluster extends AbstractModel implements SupportsMetrics, Supp
                 )
                 .withAuthorization(cluster, authorization)
                 .withCruiseControl(cluster, ccMetricsReporter, node.broker())
+                .withStrimziMetricsReporter(strimziMetricsReporter)
                 .withTieredStorage(cluster, tieredStorage)
                 .withQuotas(cluster, quotas)
-                .withUserConfiguration(configuration, node.broker() && ccMetricsReporter != null)
+                .withUserConfiguration(configuration, node.broker() && ccMetricsReporter != null, strimziMetricsReporter != null && strimziMetricsReporter.isEnabled())
                 .build()
                 .trim();
     }
@@ -1855,8 +1869,11 @@ public class KafkaCluster extends AbstractModel implements SupportsMetrics, Supp
      *
      * @return ConfigMap with the shared configuration.
      */
-    public List<ConfigMap> generatePerBrokerConfigurationConfigMaps(MetricsAndLogging metricsAndLogging, Map<Integer, Map<String, String>> advertisedHostnames, Map<Integer, Map<String, String>> advertisedPorts)   {
-        String parsedMetrics = metrics.metricsJson(reconciliation, metricsAndLogging.metricsCm());
+    public List<ConfigMap> generatePerBrokerConfigurationConfigMaps(MetricsAndLogging metricsAndLogging, Map<Integer, Map<String, String>> advertisedHostnames, Map<Integer, Map<String, String>> advertisedPorts) {
+        String parsedMetrics = null;
+        if (jmxExporterMetrics != null && jmxExporterMetrics.isEnabled()) {
+            parsedMetrics = jmxExporterMetrics.metricsJson(reconciliation, metricsAndLogging.metricsCm());
+        }
         String parsedLogging = logging().loggingConfiguration(reconciliation, metricsAndLogging.loggingCm());
         List<ConfigMap> configMaps = new ArrayList<>();
 
@@ -1930,7 +1947,14 @@ public class KafkaCluster extends AbstractModel implements SupportsMetrics, Supp
      * @return  Metrics Model instance for configuring Prometheus metrics
      */
     public MetricsModel metrics()   {
-        return metrics;
+        return jmxExporterMetrics;
+    }
+
+    /**
+     * @return Strimzi Metrics Reporter Model instance for configuring Prometheus metrics
+     */
+    public StrimziMetricsReporterModel strimziMetricsReporter()   {
+        return strimziMetricsReporter;
     }
 
     /**

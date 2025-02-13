@@ -41,6 +41,7 @@
 //Monitoring links
 :GrafanaHome: link:https://grafana.com/[Grafana Labs^]
 :JMXExporter: link:https://github.com/prometheus/jmx_exporter[Prometheus JMX Exporter^]
+:StrimziMetricsReporter: link:https://github.com/strimzi/metrics-reporter[Strimzi Metrics Reporter^]
 :PrometheusHome: link:https://github.com/prometheus[Prometheus^]
 :PrometheusConfig: link:https://prometheus.io/docs/prometheus/latest/configuration/configuration[Prometheus configuration^]
 :kafka-exporter-project: link:https://github.com/danielqsj/kafka_exporter[Kafka Exporter^]

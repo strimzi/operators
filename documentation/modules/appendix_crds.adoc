@@ -87,7 +87,7 @@ include::../api/io.strimzi.api.kafka.model.kafka.KafkaClusterSpec.adoc[leveloffs
 |Configures listeners to provide access to Kafka brokers.
 |config
 |map
-|Kafka broker config properties with the following prefixes cannot be set: listeners, advertised., broker., listener., host.name, port, inter.broker.listener.name, sasl., ssl., security., password., log.dir, zookeeper.connect, zookeeper.set.acl, zookeeper.ssl, zookeeper.clientCnxnSocket, authorizer., super.user, cruise.control.metrics.topic, cruise.control.metrics.reporter.bootstrap.servers, node.id, process.roles, controller., metadata.log.dir, zookeeper.metadata.migration.enable, client.quota.callback.static.kafka.admin., client.quota.callback.static.produce, client.quota.callback.static.fetch, client.quota.callback.static.storage.per.volume.limit.min.available., client.quota.callback.static.excluded.principal.name.list (with the exception of: zookeeper.connection.timeout.ms, sasl.server.max.receive.size, ssl.cipher.suites, ssl.protocol, ssl.enabled.protocols, ssl.secure.random.implementation, cruise.control.metrics.topic.num.partitions, cruise.control.metrics.topic.replication.factor, cruise.control.metrics.topic.retention.ms, cruise.control.metrics.topic.auto.create.retries, cruise.control.metrics.topic.auto.create.timeout.ms, cruise.control.metrics.topic.min.insync.replicas, controller.quorum.election.backoff.max.ms, controller.quorum.election.timeout.ms, controller.quorum.fetch.timeout.ms).
+|Kafka broker config properties with the following prefixes cannot be set: listeners, advertised., broker., listener., host.name, port, inter.broker.listener.name, sasl., ssl., security., password., log.dir, zookeeper.connect, zookeeper.set.acl, zookeeper.ssl, zookeeper.clientCnxnSocket, authorizer., super.user, cruise.control.metrics.topic, cruise.control.metrics.reporter.bootstrap.servers, node.id, process.roles, controller., metadata.log.dir, zookeeper.metadata.migration.enable, client.quota.callback.static.kafka.admin., client.quota.callback.static.produce, client.quota.callback.static.fetch, client.quota.callback.static.storage.per.volume.limit.min.available., client.quota.callback.static.excluded.principal.name.list, kafka.metric.reporters, prometheus.metrics.reporter. (with the exception of: zookeeper.connection.timeout.ms, sasl.server.max.receive.size, ssl.cipher.suites, ssl.protocol, ssl.enabled.protocols, ssl.secure.random.implementation, cruise.control.metrics.topic.num.partitions, cruise.control.metrics.topic.replication.factor, cruise.control.metrics.topic.retention.ms, cruise.control.metrics.topic.auto.create.retries, cruise.control.metrics.topic.auto.create.timeout.ms, cruise.control.metrics.topic.min.insync.replicas, controller.quorum.election.backoff.max.ms, controller.quorum.election.timeout.ms, controller.quorum.fetch.timeout.ms).
 |storage
 |xref:type-EphemeralStorage-{context}[`EphemeralStorage`], xref:type-PersistentClaimStorage-{context}[`PersistentClaimStorage`], xref:type-JbodStorage-{context}[`JbodStorage`]
 |**The `storage` property has been deprecated.** Use `KafkaNodePool` resources. Storage is now configured in the `KafkaNodePool` resources and this option is ignored.
@@ -116,7 +116,7 @@ include::../api/io.strimzi.api.kafka.model.kafka.KafkaClusterSpec.adoc[leveloffs
 |https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#resourcerequirements-v1-core[ResourceRequirements]
 |CPU and memory resources to reserve.
 |metricsConfig
-|xref:type-JmxPrometheusExporterMetrics-{context}[`JmxPrometheusExporterMetrics`]
+|xref:type-JmxPrometheusExporterMetrics-{context}[`JmxPrometheusExporterMetrics`], xref:type-StrimziMetricsReporter-{context}[`StrimziMetricsReporter`]
 |Metrics configuration.
 |logging
 |xref:type-InlineLogging-{context}[`InlineLogging`], xref:type-ExternalLogging-{context}[`ExternalLogging`]
@@ -1020,7 +1020,7 @@ It must have the value `password` for the type `KafkaJmxAuthenticationPassword`.
 Used in: xref:type-CruiseControlSpec-{context}[`CruiseControlSpec`], xref:type-KafkaClusterSpec-{context}[`KafkaClusterSpec`], xref:type-KafkaConnectSpec-{context}[`KafkaConnectSpec`], xref:type-KafkaMirrorMaker2Spec-{context}[`KafkaMirrorMaker2Spec`], xref:type-ZookeeperClusterSpec-{context}[`ZookeeperClusterSpec`]
 
 
-The `type` property is a discriminator that distinguishes use of the `JmxPrometheusExporterMetrics` type from other subtypes which may be added in the future.
+The `type` property is a discriminator that distinguishes use of the `JmxPrometheusExporterMetrics` type from xref:type-StrimziMetricsReporter-{context}[`StrimziMetricsReporter`].
 It must have the value `jmxPrometheusExporter` for the type `JmxPrometheusExporterMetrics`.
 [cols="2,2,3a",options="header"]
 |====
@@ -1045,6 +1045,39 @@ Used in: xref:type-ExternalLogging-{context}[`ExternalLogging`], xref:type-JmxPr
 |configMapKeyRef
 |https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#configmapkeyselector-v1-core[ConfigMapKeySelector]
 |Reference to the key in the ConfigMap containing the configuration.
+|====
+
+[id='type-StrimziMetricsReporter-{context}']
+= `StrimziMetricsReporter` schema reference
+
+Used in: xref:type-CruiseControlSpec-{context}[`CruiseControlSpec`], xref:type-KafkaClusterSpec-{context}[`KafkaClusterSpec`], xref:type-KafkaConnectSpec-{context}[`KafkaConnectSpec`], xref:type-KafkaMirrorMaker2Spec-{context}[`KafkaMirrorMaker2Spec`], xref:type-ZookeeperClusterSpec-{context}[`ZookeeperClusterSpec`]
+
+
+The `type` property is a discriminator that distinguishes use of the `StrimziMetricsReporter` type from xref:type-JmxPrometheusExporterMetrics-{context}[`JmxPrometheusExporterMetrics`].
+It must have the value `strimziMetricsReporter` for the type `StrimziMetricsReporter`.
+[cols="2,2,3a",options="header"]
+|====
+|Property |Property type |Description
+|type
+|string
+|Must be `strimziMetricsReporter`.
+|values
+|xref:type-StrimziMetricsReporterValues-{context}[`StrimziMetricsReporterValues`]
+|Configuration values for the Strimzi Metrics Reporter.
+|====
+
+[id='type-StrimziMetricsReporterValues-{context}']
+= `StrimziMetricsReporterValues` schema reference
+
+Used in: xref:type-StrimziMetricsReporter-{context}[`StrimziMetricsReporter`]
+
+
+[cols="2,2,3a",options="header"]
+|====
+|Property |Property type |Description
+|allowList
+|string array
+|A comma separated list of regex patterns to specify the metrics to collect. Default: `.*`.
 |====
 
 [id='type-InlineLogging-{context}']
@@ -1552,7 +1585,7 @@ Used in: xref:type-KafkaSpec-{context}[`KafkaSpec`]
 |https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#resourcerequirements-v1-core[ResourceRequirements]
 |CPU and memory resources to reserve.
 |metricsConfig
-|xref:type-JmxPrometheusExporterMetrics-{context}[`JmxPrometheusExporterMetrics`]
+|xref:type-JmxPrometheusExporterMetrics-{context}[`JmxPrometheusExporterMetrics`], xref:type-StrimziMetricsReporter-{context}[`StrimziMetricsReporter`]
 |Metrics configuration.
 |logging
 |xref:type-InlineLogging-{context}[`InlineLogging`], xref:type-ExternalLogging-{context}[`ExternalLogging`]
@@ -1904,7 +1937,7 @@ include::../api/io.strimzi.api.kafka.model.kafka.cruisecontrol.CruiseControlSpec
 |map
 |The Cruise Control configuration. For a full list of configuration options refer to https://github.com/linkedin/cruise-control/wiki/Configurations. Note that properties with the following prefixes cannot be set: bootstrap.servers, client.id, zookeeper., network., security., failed.brokers.zk.path,webserver.http., webserver.api.urlprefix, webserver.session.path, webserver.accesslog., two.step., request.reason.required,metric.reporter.sampler.bootstrap.servers, capacity.config.file, self.healing., ssl., kafka.broker.failure.detection.enable, topic.config.provider.class (with the exception of: ssl.cipher.suites, ssl.protocol, ssl.enabled.protocols, webserver.http.cors.enabled, webserver.http.cors.origin, webserver.http.cors.exposeheaders, webserver.security.enable, webserver.ssl.enable).
 |metricsConfig
-|xref:type-JmxPrometheusExporterMetrics-{context}[`JmxPrometheusExporterMetrics`]
+|xref:type-JmxPrometheusExporterMetrics-{context}[`JmxPrometheusExporterMetrics`], xref:type-StrimziMetricsReporter-{context}[`StrimziMetricsReporter`]
 |Metrics configuration.
 |apiUsers
 |xref:type-HashLoginServiceApiUsers-{context}[`HashLoginServiceApiUsers`]
@@ -2493,7 +2526,7 @@ include::../api/io.strimzi.api.kafka.model.connect.KafkaConnectSpec.adoc[levelof
 |xref:type-Rack-{context}[`Rack`]
 |Configuration of the node label which will be used as the `client.rack` consumer configuration.
 |metricsConfig
-|xref:type-JmxPrometheusExporterMetrics-{context}[`JmxPrometheusExporterMetrics`]
+|xref:type-JmxPrometheusExporterMetrics-{context}[`JmxPrometheusExporterMetrics`], xref:type-StrimziMetricsReporter-{context}[`StrimziMetricsReporter`]
 |Metrics configuration.
 |tracing
 |xref:type-JaegerTracing-{context}[`JaegerTracing`], xref:type-OpenTelemetryTracing-{context}[`OpenTelemetryTracing`]
@@ -4088,7 +4121,7 @@ Used in: xref:type-KafkaMirrorMaker2-{context}[`KafkaMirrorMaker2`]
 |xref:type-Rack-{context}[`Rack`]
 |Configuration of the node label which will be used as the `client.rack` consumer configuration.
 |metricsConfig
-|xref:type-JmxPrometheusExporterMetrics-{context}[`JmxPrometheusExporterMetrics`]
+|xref:type-JmxPrometheusExporterMetrics-{context}[`JmxPrometheusExporterMetrics`], xref:type-StrimziMetricsReporter-{context}[`StrimziMetricsReporter`]
 |Metrics configuration.
 |tracing
 |xref:type-JaegerTracing-{context}[`JaegerTracing`], xref:type-OpenTelemetryTracing-{context}[`OpenTelemetryTracing`]
