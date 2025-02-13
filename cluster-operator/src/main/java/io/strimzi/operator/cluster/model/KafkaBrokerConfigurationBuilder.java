@@ -56,6 +56,7 @@ import java.util.stream.Collectors;
  */
 public class KafkaBrokerConfigurationBuilder {
     private final static String CONTROL_PLANE_LISTENER_NAME = "CONTROLPLANE-9090";
+    private final static String KAFKA_METRIC_REPORTERS_CONFIG_FIELD = "metric.reporters";
     private final static String REPLICATION_LISTENER_NAME = "REPLICATION-9091";
     // Names of environment variables expanded through config providers inside the Kafka node
     private final static String PLACEHOLDER_CERT_STORE_PASSWORD_CONFIG_PROVIDER_ENV_VAR = "${strimzienv:CERTS_STORE_PASSWORD}";
@@ -306,6 +307,7 @@ public class KafkaBrokerConfigurationBuilder {
         ////////////////////
         // Shared configurations with values dependent on all listeners
         ////////////////////
+
         // configure OAuth principal builder for all the nodes - brokers, controllers, and mixed
         configureOAuthPrincipalBuilderIfNeeded(writer, kafkaListeners);
 
@@ -821,7 +823,7 @@ public class KafkaBrokerConfigurationBuilder {
             configProviders(userConfig);
 
             // Handle all combinations of metric.reporters
-            String metricReporters = userConfig.getConfigOption(KafkaCluster.KAFKA_METRIC_REPORTERS_CONFIG_FIELD);
+            String metricReporters = userConfig.getConfigOption(KAFKA_METRIC_REPORTERS_CONFIG_FIELD);
 
             // If the injectCcMetricsReporter / injectStrimziMetricsReporter flag is set to true, it is appended to the list of metric reporters
             if (injectCcMetricsReporter) {
@@ -832,7 +834,7 @@ public class KafkaBrokerConfigurationBuilder {
             }
             if (metricReporters != null) {
                 // update the userConfig with the new list of metric reporters
-                userConfig.setConfigOption(KafkaCluster.KAFKA_METRIC_REPORTERS_CONFIG_FIELD, metricReporters);
+                userConfig.setConfigOption(KAFKA_METRIC_REPORTERS_CONFIG_FIELD, metricReporters);
             }
 
             printSectionHeader("User provided configuration");
@@ -852,7 +854,7 @@ public class KafkaBrokerConfigurationBuilder {
                 if (injectStrimziMetricsReporter) {
                     metricReporters = appendMetricReporter(metricReporters, StrimziMetricsReporterModel.KAFKA_PROMETHEUS_METRICS_REPORTER);
                 }
-                writer.println(KafkaCluster.KAFKA_METRIC_REPORTERS_CONFIG_FIELD + "=" + metricReporters);
+                writer.println(KAFKA_METRIC_REPORTERS_CONFIG_FIELD + "=" + metricReporters);
                 writer.println();
             }
         }
