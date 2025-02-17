@@ -61,6 +61,7 @@ import io.strimzi.operator.cluster.model.cruisecontrol.Capacity;
 import io.strimzi.operator.cluster.model.cruisecontrol.CpuCapacity;
 import io.strimzi.operator.common.Annotations;
 import io.strimzi.operator.common.Reconciliation;
+import io.strimzi.operator.common.model.InvalidResourceException;
 import io.strimzi.operator.common.model.Labels;
 import io.strimzi.operator.common.model.cruisecontrol.CruiseControlApiProperties;
 import io.strimzi.operator.common.model.cruisecontrol.CruiseControlConfigurationParameters;
@@ -101,6 +102,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasProperty;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @SuppressWarnings({
     "checkstyle:ClassDataAbstractionCoupling",
@@ -1093,10 +1095,27 @@ public class CruiseControlTest {
     @ParallelTest
     public void testMetricsParsingNoMetrics() {
         CruiseControl cc = createCruiseControl(KAFKA, NODES, STORAGE, Map.of());
+        assertThat(cc.metrics(), is(nullValue()));
+    }
 
-        assertThat(cc.metrics().isEnabled(), is(false));
-        assertThat(cc.metrics().getConfigMapName(), is(nullValue()));
-        assertThat(cc.metrics().getConfigMapKey(), is(nullValue()));
+    @ParallelTest
+    public void testStrimziReporterMetricsConfig() {
+        Kafka kafka = new KafkaBuilder(KAFKA)
+            .editSpec()
+                .withNewCruiseControl()
+                    .withNewStrimziMetricsReporterConfig()
+                        .withNewValues()
+                            .withAllowList(List.of("kafka_log.*", "kafka_network.*"))
+                        .endValues()
+                    .endStrimziMetricsReporterConfig()
+                .endCruiseControl()
+            .endSpec()
+            .build();
+        
+        InvalidResourceException ex = assertThrows(InvalidResourceException.class, 
+            () -> createCruiseControl(kafka, NODES, STORAGE, Map.of()));
+
+        assertThat(ex.getMessage(), is("The Strimzi Metrics Reporter is not supported with Cruise Control"));
     }
 
     @ParallelTest
@@ -1204,7 +1223,7 @@ public class CruiseControlTest {
 
     private List<EnvVar> getExpectedEnvVars() {
         List<EnvVar> expected = new ArrayList<>();
-        expected.add(new EnvVarBuilder().withName(CruiseControl.ENV_VAR_CRUISE_CONTROL_METRICS_ENABLED).withValue(Boolean.toString(CruiseControl.DEFAULT_CRUISE_CONTROL_METRICS_ENABLED)).build());
+        expected.add(new EnvVarBuilder().withName(CruiseControl.ENV_VAR_CRUISE_CONTROL_JMX_EXPORTER_ENABLED).withValue(Boolean.toString(CruiseControl.DEFAULT_CRUISE_CONTROL_METRICS_ENABLED)).build());
         expected.add(new EnvVarBuilder().withName(CruiseControl.ENV_VAR_STRIMZI_KAFKA_BOOTSTRAP_SERVERS).withValue(KafkaResources.bootstrapServiceName(CLUSTER_NAME) + ":" + KafkaCluster.REPLICATION_PORT).build());
         expected.add(new EnvVarBuilder().withName(CruiseControl.ENV_VAR_STRIMZI_KAFKA_GC_LOG_ENABLED).withValue(Boolean.toString(JvmOptions.DEFAULT_GC_LOGGING_ENABLED)).build());
         expected.add(new EnvVarBuilder().withName(CruiseControl.ENV_VAR_API_SSL_ENABLED).withValue(Boolean.toString(CruiseControlConfigurationParameters.DEFAULT_WEBSERVER_SSL_ENABLED)).build());

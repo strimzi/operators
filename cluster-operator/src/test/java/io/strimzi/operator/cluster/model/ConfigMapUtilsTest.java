@@ -17,7 +17,7 @@ import io.strimzi.api.kafka.model.kafka.Kafka;
 import io.strimzi.api.kafka.model.kafka.KafkaBuilder;
 import io.strimzi.operator.cluster.model.logging.LoggingModel;
 import io.strimzi.operator.cluster.model.logging.SupportsLogging;
-import io.strimzi.operator.cluster.model.metrics.MetricsModel;
+import io.strimzi.operator.cluster.model.metrics.JmxPrometheusExporterModel;
 import io.strimzi.operator.cluster.model.metrics.SupportsMetrics;
 import io.strimzi.operator.common.Reconciliation;
 import io.strimzi.operator.common.model.Labels;
@@ -85,7 +85,7 @@ public class ConfigMapUtilsTest {
         Map<String, String> data = ConfigMapUtils.generateMetricsAndLogConfigMapData(Reconciliation.DUMMY_RECONCILIATION, new ModelWithMetricsAndLogging(kafka), new MetricsAndLogging(new ConfigMapBuilder().withNewMetadata().withName("metrics-cm").endMetadata().withData(Map.of("metrics.yaml", "")).build(), new ConfigMapBuilder().withNewMetadata().withName("logging-cm").endMetadata().withData(Map.of("log4j.properties", "")).build()));
 
         assertThat(data.size(), is(2));
-        assertThat(data.get(MetricsModel.CONFIG_MAP_KEY), is(notNullValue()));
+        assertThat(data.get(JmxPrometheusExporterModel.CONFIG_MAP_KEY), is(notNullValue()));
         assertThat(data.get(LoggingModel.LOG4J1_CONFIG_MAP_KEY), is(notNullValue()));
     }
 
@@ -108,8 +108,8 @@ public class ConfigMapUtilsTest {
         }
 
         @Override
-        public MetricsModel metrics() {
-            return new MetricsModel(new KafkaConnectSpecBuilder().withMetricsConfig(new JmxPrometheusExporterMetricsBuilder().withNewValueFrom().withConfigMapKeyRef(new ConfigMapKeySelector("metrics.yaml", "metrics-cm", false)).endValueFrom().build()).build());
+        public JmxPrometheusExporterModel metrics() {
+            return new JmxPrometheusExporterModel(new KafkaConnectSpecBuilder().withMetricsConfig(new JmxPrometheusExporterMetricsBuilder().withNewValueFrom().withConfigMapKeyRef(new ConfigMapKeySelector("metrics.yaml", "metrics-cm", false)).endValueFrom().build()).build());
         }
     }
 }

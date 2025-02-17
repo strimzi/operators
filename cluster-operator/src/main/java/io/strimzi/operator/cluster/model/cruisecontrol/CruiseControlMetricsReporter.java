@@ -23,10 +23,6 @@ public record CruiseControlMetricsReporter(String topicName, Integer numPartitio
     private static final String KAFKA_REPLICATION_FACTOR_CONFIG_FIELD = "default.replication.factor";
 
     /**
-     * Kafka configuration option for configuring metrics reporters
-     */
-    public static final String KAFKA_METRIC_REPORTERS_CONFIG_FIELD = "metric.reporters";
-    /**
      * Class of the Cruise Control Metrics reporter
      */
     public static final String CRUISE_CONTROL_METRIC_REPORTER = "com.linkedin.kafka.cruisecontrol.metricsreporter.CruiseControlMetricsReporter";

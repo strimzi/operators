@@ -17,6 +17,8 @@
 
     <properties>
         <cruise-control.version>2.5.141</cruise-control.version>
+        <strimzi-metrics-reporter.version>0.1.0</strimzi-metrics-reporter.version>
+        <prometheus.version>1.3.1</prometheus.version>
     </properties>
 
     <repositories>
@@ -31,6 +33,26 @@
             <groupId>com.linkedin.cruisecontrol</groupId>
             <artifactId>cruise-control</artifactId>
             <version>${cruise-control.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.strimzi</groupId>
+            <artifactId>metrics-reporter</artifactId>
+            <version>${strimzi-metrics-reporter.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.prometheus</groupId>
+            <artifactId>prometheus-metrics-model</artifactId>
+            <version>${prometheus.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.prometheus</groupId>
+            <artifactId>prometheus-metrics-instrumentation-jvm</artifactId>
+            <version>${prometheus.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.prometheus</groupId>
+            <artifactId>prometheus-metrics-exporter-httpserver</artifactId>
+            <version>${prometheus.version}</version>
         </dependency>
     </dependencies>
 </project>

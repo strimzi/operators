@@ -64,7 +64,8 @@ public class KafkaClusterSpec implements HasConfigurableMetrics, HasConfigurable
             + "cruise.control.metrics.topic, cruise.control.metrics.reporter.bootstrap.servers, "
             + "node.id, process.roles, controller., metadata.log.dir, zookeeper.metadata.migration.enable, " // KRaft options
             + "client.quota.callback.static.kafka.admin., client.quota.callback.static.produce, client.quota.callback.static.fetch, "
-            + "client.quota.callback.static.storage.per.volume.limit.min.available., client.quota.callback.static.excluded.principal.name.list";
+            + "client.quota.callback.static.storage.per.volume.limit.min.available., client.quota.callback.static.excluded.principal.name.list, "
+            + "kafka.metric.reporters, prometheus.metrics.reporter.";
 
     public static final String FORBIDDEN_PREFIX_EXCEPTIONS = "zookeeper.connection.timeout.ms, sasl.server.max.receive.size, "
             + "ssl.cipher.suites, ssl.protocol, ssl.enabled.protocols, ssl.secure.random.implementation, "

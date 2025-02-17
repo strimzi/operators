@@ -74,6 +74,7 @@ import io.strimzi.kafka.oauth.server.ServerConfig;
 import io.strimzi.operator.cluster.KafkaVersionTestUtils;
 import io.strimzi.operator.cluster.PlatformFeaturesAvailability;
 import io.strimzi.operator.cluster.ResourceUtils;
+import io.strimzi.operator.cluster.model.metrics.JmxPrometheusExporterModel;
 import io.strimzi.operator.cluster.model.metrics.MetricsModel;
 import io.strimzi.operator.common.Reconciliation;
 import io.strimzi.operator.common.model.InvalidResourceException;
@@ -170,7 +171,7 @@ public class KafkaConnectClusterTest {
     }
 
     private void checkMetricsConfigMap(ConfigMap metricsCm) {
-        assertThat(metricsCm.getData().get(MetricsModel.CONFIG_MAP_KEY), is(metricsCmJson));
+        assertThat(metricsCm.getData().get(JmxPrometheusExporterModel.CONFIG_MAP_KEY), is(metricsCmJson));
     }
 
     private Map<String, String> expectedLabels(String name)    {
@@ -196,7 +197,7 @@ public class KafkaConnectClusterTest {
     protected List<EnvVar> getExpectedEnvVars() {
         List<EnvVar> expected = new ArrayList<>();
         expected.add(new EnvVarBuilder().withName(KafkaConnectCluster.ENV_VAR_KAFKA_CONNECT_CONFIGURATION).withValue(expectedConfiguration.asPairs()).build());
-        expected.add(new EnvVarBuilder().withName(KafkaConnectCluster.ENV_VAR_KAFKA_CONNECT_METRICS_ENABLED).withValue(String.valueOf(true)).build());
+        expected.add(new EnvVarBuilder().withName(KafkaConnectCluster.ENV_VAR_KAFKA_CONNECT_JMX_EXPORTER_ENABLED).withValue(String.valueOf(true)).build());
         expected.add(new EnvVarBuilder().withName(KafkaConnectCluster.ENV_VAR_KAFKA_CONNECT_BOOTSTRAP_SERVERS).withValue(bootstrapServers).build());
         expected.add(new EnvVarBuilder().withName(KafkaConnectCluster.ENV_VAR_STRIMZI_KAFKA_GC_LOG_ENABLED).withValue(Boolean.toString(JvmOptions.DEFAULT_GC_LOGGING_ENABLED)).build());
         expected.add(new EnvVarBuilder().withName(AbstractModel.ENV_VAR_KAFKA_HEAP_OPTS).withValue(kafkaHeapOpts).build());
@@ -2094,17 +2095,31 @@ public class KafkaConnectClusterTest {
         KafkaConnectCluster kc = KafkaConnectCluster.fromCrd(Reconciliation.DUMMY_RECONCILIATION, kafkaConnect, VERSIONS, SHARED_ENV_PROVIDER);
 
         assertThat(kc.metrics().isEnabled(), is(true));
-        assertThat(kc.metrics().getConfigMapName(), is("my-metrics-configuration"));
-        assertThat(kc.metrics().getConfigMapKey(), is("config.yaml"));
+        assertThat(((JmxPrometheusExporterModel) kc.metrics()).getConfigMapName(), is("my-metrics-configuration"));
+        assertThat(((JmxPrometheusExporterModel) kc.metrics()).getConfigMapKey(), is("config.yaml"));
     }
 
     @ParallelTest
     public void testMetricsParsingNoMetrics() {
         KafkaConnectCluster kc = KafkaConnectCluster.fromCrd(Reconciliation.DUMMY_RECONCILIATION, this.resource, VERSIONS, SHARED_ENV_PROVIDER);
+        assertThat(kc.metrics(), is(nullValue()));
+    }
+    
+    @ParallelTest
+    public void testStrimziMetricsReporterConfig() {
+        KafkaConnect resourceWithMetrics = new KafkaConnectBuilder(resource)
+            .editSpec()
+                .withNewStrimziMetricsReporterConfig()
+                    .withNewValues()
+                        .withAllowList(List.of("kafka_log.*", "kafka_network.*"))
+                    .endValues()
+                .endStrimziMetricsReporterConfig()
+            .endSpec()
+            .build();
+        InvalidResourceException ex = assertThrows(InvalidResourceException.class,
+            () -> KafkaConnectCluster.fromCrd(Reconciliation.DUMMY_RECONCILIATION, resourceWithMetrics, VERSIONS, SHARED_ENV_PROVIDER));
 
-        assertThat(kc.metrics().isEnabled(), is(false));
-        assertThat(kc.metrics().getConfigMapName(), is(nullValue()));
-        assertThat(kc.metrics().getConfigMapKey(), is(nullValue()));
+        assertThat(ex.getMessage(), is("The Strimzi Metrics Reporter is not supported with this component"));
     }
 
     @ParallelTest

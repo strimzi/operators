@@ -23,6 +23,7 @@ import java.util.Map;
         property = "type")
 @JsonSubTypes({
     @JsonSubTypes.Type(name = JmxPrometheusExporterMetrics.TYPE_JMX_EXPORTER, value = JmxPrometheusExporterMetrics.class),
+    @JsonSubTypes.Type(name = StrimziMetricsReporter.TYPE_STRIMZI_METRICS_REPORTER, value = StrimziMetricsReporter.class)
 })
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @EqualsAndHashCode
@@ -30,7 +31,10 @@ import java.util.Map;
 public abstract class MetricsConfig implements UnknownPropertyPreserving {
     private Map<String, Object> additionalProperties;
 
-    @Description("Metrics type. Only 'jmxPrometheusExporter' supported currently.")
+    @Description("Metrics type. " +
+            "The supported types are `jmxPrometheusExporter` and `strimziMetricsReporter`. " +
+            "Type `jmxPrometheusExporter` uses the Prometheus JMX Exporter to expose Kafka JMX metrics in Prometheus format through an HTTP endpoint. " +
+            "Type `strimziMetricsReporter` uses the Strimzi Metrics Reporter to directly expose Kafka metrics in Prometheus format through an HTTP endpoint.")
     public abstract String getType();
 
     @Override
@@ -46,4 +50,3 @@ public abstract class MetricsConfig implements UnknownPropertyPreserving {
         this.additionalProperties.put(name, value);
     }
 }
-
