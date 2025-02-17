@@ -47,6 +47,18 @@ kubectl replace -f install/cluster-operator
 +
 Wait for the rolling updates to complete.
 
+. If the target operator version does not support the current Kafka version, an error message is returned.
++
+To resolve this, downgrade to a supported Kafka version if possible:
++
+--
+.. Edit the `Kafka` custom resource.
+.. Change the `spec.kafka.version` property to a supported Kafka version.
+--
++
+If no error message is returned, you can proceed to the next step and upgrade the Kafka version later.
+
+
 . Get the image for the Kafka pod to ensure the downgrade was successful:
 +
 [source,shell,subs="+quotes,attributes"]

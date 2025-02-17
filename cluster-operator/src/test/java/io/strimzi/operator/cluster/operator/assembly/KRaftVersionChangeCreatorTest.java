@@ -443,6 +443,31 @@ public class KRaftVersionChangeCreatorTest {
             async.flag();
         })));
     }
+    
+    @Test
+    public void testDowngradeFromUnknownVersion(VertxTestContext context) {
+        String unknownVersion = getHigherVersionThanLatest();
+        KRaftVersionChangeCreator vcc = mockVersionChangeCreator(
+                mockKafka(VERSIONS.version(KafkaVersionTestUtils.LATEST_KAFKA_VERSION).version(), VERSIONS.version(KafkaVersionTestUtils.LATEST_KAFKA_VERSION).metadataVersion(), VERSIONS.version(KafkaVersionTestUtils.LATEST_KAFKA_VERSION).metadataVersion()),
+                mockRos(mockUniformPods(unknownVersion))
+        );
+
+        Checkpoint async = context.checkpoint();
+        vcc.reconcile().onComplete(context.succeeding(c -> context.verify(() -> {
+            assertThat(c.from().version(), is(unknownVersion));
+            assertThat(c.to(), is(VERSIONS.version(KafkaVersionTestUtils.LATEST_KAFKA_VERSION)));
+            assertThat(c.metadataVersion(), is(VERSIONS.version(KafkaVersionTestUtils.LATEST_KAFKA_VERSION).metadataVersion()));
+
+            async.flag();
+        })));
+    }
+    
+    private String getHigherVersionThanLatest() {
+        String[] parsedVersion = KafkaVersionTestUtils.LATEST_KAFKA_VERSION.split("\\.");
+        int incrementedMinorVersion = Integer.parseInt(parsedVersion[1]) + 1;
+        parsedVersion[1] = Integer.toString(incrementedMinorVersion);
+        return String.join(".", parsedVersion);  
+    }
 
     @Test
     public void testDowngradeWithWrongCurrentMetadataVersion(VertxTestContext context) {

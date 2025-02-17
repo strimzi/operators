@@ -17,8 +17,11 @@ WARNING: The following downgrade instructions are only suitable if you installed
 If you installed Strimzi using another method, like {OperatorHub}, downgrade may not be supported by that method unless specified in their documentation. 
 To ensure a successful downgrade process, it is essential to use a supported approach.
 
+//kafka downgrade paths
+include::../../modules/upgrading/con-downgrade-paths.adoc[leveloffset=+1]
+
 //steps to downgrade the operators
-include::../../modules/upgrading/proc-downgrade-cluster-operator.adoc[leveloffset=+1]
+include::assembly-downgrade-cluster-operator.adoc[leveloffset=+1]
 
 //steps to downgrade Kafka
 include::../../modules/upgrading/proc-downgrade-kafka-kraft.adoc[leveloffset=+1]

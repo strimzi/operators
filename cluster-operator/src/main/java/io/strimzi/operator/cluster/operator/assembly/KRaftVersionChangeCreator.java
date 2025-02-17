@@ -142,13 +142,14 @@ public class KRaftVersionChangeCreator {
                 LOGGER.warnCr(reconciliation, "Kafka Pods exist, but do not contain the {} annotation to detect their version. Kafka upgrade cannot be detected.", ANNO_STRIMZI_IO_KAFKA_VERSION);
                 throw new KafkaUpgradeException("Kafka Pods exist, but do not contain the " + ANNO_STRIMZI_IO_KAFKA_VERSION + " annotation to detect their version. Kafka upgrade cannot be detected.");
             }
-        } else if (lowestKafkaVersion.equals(highestKafkaVersion)) {
-            // All brokers have the same version. We can use it as the current version.
-            versionFrom = versions.version(lowestKafkaVersion);
-            versionTo = versionFromCr;
         } else if (compareDottedVersions(highestKafkaVersion, versionFromCr.version()) > 0)    {
             // Highest Kafka version used by the brokers is higher than desired => suspected downgrade
-            versionFrom = versions.version(highestKafkaVersion);
+            try {
+                versionFrom = versions.version(highestKafkaVersion);
+            } catch (KafkaUpgradeException exception) {
+                // From version is unknown but thats ok for downgrade
+                versionFrom = new KafkaVersion(highestKafkaVersion, null, null, null, false, false, null);
+            }
             versionTo = versionFromCr;
         } else {
             // Highest Kafka version used by the brokers is equal or lower than desired => suspected upgrade

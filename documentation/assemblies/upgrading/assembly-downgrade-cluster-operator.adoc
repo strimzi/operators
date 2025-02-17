@@ -1,0 +1,26 @@
+// This assembly is included in the following assemblies:
+//
+// assembly-downgrade.adoc
+
+[id='assembly-downgrade-cluster-operator-{context}']
+= Downgrading the Cluster Operator
+
+//steps to downgrade the operators
+include::../../modules/upgrading/proc-downgrade-cluster-operator.adoc[leveloffset=+1]
+
+[id='con-downgrade-cluster-operator-unsupported-kafka-{context}']
+== Downgrading the Cluster Operator returns Kafka version error
+
+If you downgrade the Cluster Operator to a version that does not support the current version of Kafka you are using, you get an _unsupported Kafka version_ error.
+This error applies to all installation methods and means that you must downgrade Kafka to a supported Kafka version.
+Change the `spec.kafka.version` in the `Kafka` resource to the supported version.
+
+You can use `kubectl` to check for error messages like this in the `status` of the `Kafka` resource.
+
+.Checking the Kafka status for errors
+[source,shell, subs=+quotes]
+----
+kubectl get kafka <kafka_cluster_name> -n <namespace> -o jsonpath='{.status.conditions}'
+----
+
+Replace <kafka_cluster_name> with the name of your Kafka cluster and <namespace> with the Kubernetes namespace where the pod is running.
