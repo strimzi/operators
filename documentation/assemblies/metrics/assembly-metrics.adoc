@@ -59,3 +59,5 @@ include::assembly-metrics-config-files.adoc[leveloffset=+1]
 include::assembly_metrics-prometheus-setup.adoc[leveloffset=+1]
 //How to add Grafana dashboards
 include::../../modules/metrics/proc_metrics-grafana-dashboard.adoc[leveloffset=+1]
+//How to monitor custom resources managed by Strimzi
+include::../../modules/metrics/proc_metrics-custom-resource-monitoring.adoc[leveloffset=+1]

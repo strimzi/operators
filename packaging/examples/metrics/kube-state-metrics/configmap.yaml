@@ -1,0 +1,51 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: strimzi-kube-state-metrics-config
+data:
+  config.yaml: |
+    spec:
+      resources:
+        - groupVersionKind:
+            group: kafka.strimzi.io
+            version: v1beta2
+            kind: KafkaTopic
+          metricNamePrefix: strimzi_kafka_topic
+          metrics:
+            - name: resource_info
+              help: "The current state of a Strimzi kafka topic resource"
+              each:
+                type: Info
+                info:
+                  labelsFromPath:
+                    name: [ metadata, name ]
+              labelsFromPath:
+                exported_namespace: [ metadata, namespace ]
+                partitions: [ spec, partitions ]
+                replicas: [ spec, replicas ]
+                ready: [ status, conditions, "[type=Ready]", status ]
+                deprecated: [ status, conditions, "[reason=DeprecatedFields]", type ]
+                generation: [ status, observedGeneration ]
+                topicId: [ status, topicId ]
+                topicName: [ status, topicName ]
+        - groupVersionKind:
+            group: kafka.strimzi.io
+            version: v1beta2
+            kind: KafkaUser
+          metricNamePrefix: strimzi_kafka_user
+          metrics:
+            - name: resource_info
+              help: "The current state of a Strimzi kafka user resource"
+              each:
+                type: Info
+                info:
+                  labelsFromPath:
+                    name: [ metadata, name ]
+              labelsFromPath:
+                exported_namespace: [ metadata, namespace ]
+                ready: [ status, conditions, "[type=Ready]", status ]
+                deprecated: [ status, conditions, "[reason=DeprecatedFields]", type ]
+                secret: [ status, secret ]
+                generation: [ status, observedGeneration ]
+                username: [ status, username ]

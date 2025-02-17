@@ -1,0 +1,37 @@
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: strimzi-kube-state-metrics
+spec:
+  groups:
+    - name: strimzi-kube-state-metrics
+      rules:
+        - alert: KafkaUserDeprecated
+          expr: strimzi_kafka_user_resource_info{deprecated="Warning"}
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            message: "Strimzi KafkaUser {{ $labels.username }} has a deprecated configuration"
+        - alert: KafkaUserNotReady
+          expr: strimzi_kafka_user_resource_info{ready!="True"}
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            message: "Strimzi KafkaUser {{ $labels.username }} is not ready"
+        - alert: KafkaTopicDeprecated
+          expr: strimzi_kafka_topic_resource_info{deprecated="Warning"}
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            message: "Strimzi KafkaTopic {{ $labels.topicName }} has a deprecated configuration"
+        - alert: KafkaTopicNotReady
+          expr: strimzi_kafka_topic_resource_info{ready!="True"}
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            message: "Strimzi KafkaTopic {{ $labels.topicName }} is not ready"
