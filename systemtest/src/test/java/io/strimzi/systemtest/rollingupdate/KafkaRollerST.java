@@ -483,6 +483,37 @@ public class KafkaRollerST extends AbstractST {
         return runningKafkaPods == (kafkaPods.size() - 1);
     }
 
+    @ParallelNamespaceTest
+    void testKafkaRollingUpdatesWithDedicatedControllers() {
+        final TestStorage testStorage = new TestStorage(ResourceManager.getTestContext());
+        final int brokerNodes = 3;
+        final int controllerNodes = 3;
+
+        LOGGER.info("Deploying KRaft cluster with dedicated controllers ({} replicas) and brokers ({} replicas).", controllerNodes, brokerNodes);
+
+        // Create dedicated controller and broker KafkaNodePools and Kafka CR
+        resourceManager.createResourceWithWait(
+            KafkaNodePoolTemplates.controllerPoolPersistentStorage(testStorage.getNamespaceName(),
+                testStorage.getControllerPoolName(), testStorage.getClusterName(), controllerNodes).build(),
+            KafkaNodePoolTemplates.brokerPoolPersistentStorage(testStorage.getNamespaceName(),
+                testStorage.getBrokerPoolName(), testStorage.getClusterName(), brokerNodes).build(),
+            KafkaTemplates.kafka(testStorage.getNamespaceName(), testStorage.getClusterName(), brokerNodes).build()
+        );
+
+        Map<String, String> controllerPoolPodsSnapshot = PodUtils.podSnapshot(testStorage.getNamespaceName(), testStorage.getControllerSelector());
+        Map<String, String> brokerPoolPodsSnapshot = PodUtils.podSnapshot(testStorage.getNamespaceName(), testStorage.getBrokerPoolSelector());
+
+        LOGGER.info("Modifying Kafka CR to enable auto.create.topics.enable=false, expecting rolling update of all nodes including controllers.");
+
+        KafkaUtils.updateSpecificConfiguration(testStorage.getNamespaceName(), testStorage.getClusterName(), "auto.create.topics.enable", "false");
+
+        RollingUpdateUtils.waitTillComponentHasRolledAndPodsReady(testStorage.getNamespaceName(), testStorage.getControllerSelector(), controllerNodes, controllerPoolPodsSnapshot);
+        RollingUpdateUtils.waitTillComponentHasRolledAndPodsReady(testStorage.getNamespaceName(), testStorage.getBrokerPoolSelector(), brokerNodes, brokerPoolPodsSnapshot);
+
+        // The cluster should remain Ready and CO should not be stuck with TimeoutException
+        KafkaUtils.waitForKafkaReady(testStorage.getNamespaceName(), testStorage.getClusterName());
+    }
+
     @BeforeAll
     void setup() {
         this.clusterOperator = this.clusterOperator.defaultInstallation()
