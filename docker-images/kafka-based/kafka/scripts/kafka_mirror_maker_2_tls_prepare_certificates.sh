@@ -17,17 +17,17 @@ oauth_truststore_path="$9"
 
 if [ -n "$trusted_certs" ]; then
     echo "Preparing $truststore_path truststore"
-    prepare_truststore "$truststore_path" "$CERTS_STORE_PASSWORD" "$certs_key_path" "$trusted_certs"
+    prepare_truststore "$truststore_path" "$MIRRORMAKER_2_CERTS_STORE_PASSWORD" "$certs_key_path" "$trusted_certs"
 fi
 
 if [ -n "$tls_auth_cert" ] && [ -n "$tls_auth_key" ]; then
     echo "Preparing keystore"
     rm -f "$keystore_path"
-    create_keystore_without_ca_file "$keystore_path" "$CERTS_STORE_PASSWORD" "$certs_key_path/$tls_auth_cert" "$certs_key_path/$tls_auth_key" "$tls_auth_cert"
+    create_keystore_without_ca_file "$keystore_path" "$MIRRORMAKER_2_CERTS_STORE_PASSWORD" "$certs_key_path/$tls_auth_cert" "$certs_key_path/$tls_auth_key" "$tls_auth_cert"
     echo "Preparing keystore is complete"
 fi
 
 if [ -n "$oauth_trusted_certs" ]; then
     echo "Preparing $oauth_truststore_path truststore for OAuth"
-    prepare_truststore "$oauth_truststore_path" "$CERTS_STORE_PASSWORD" "$oauth_certs_path" "$oauth_trusted_certs"
+    prepare_truststore "$oauth_truststore_path" "$MIRRORMAKER_2_CERTS_STORE_PASSWORD" "$oauth_certs_path" "$oauth_trusted_certs"
 fi

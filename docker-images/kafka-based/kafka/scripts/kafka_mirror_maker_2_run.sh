@@ -3,8 +3,8 @@ set -e
 set +x
 
 # Generate temporary keystore password
-CERTS_STORE_PASSWORD=$(< /dev/urandom tr -dc _A-Z-a-z-0-9 | head -c32)
-export CERTS_STORE_PASSWORD
+MIRRORMAKER_2_CERTS_STORE_PASSWORD=$(< /dev/urandom tr -dc _A-Z-a-z-0-9 | head -c32)
+export MIRRORMAKER_2_CERTS_STORE_PASSWORD
 
 # Create dir where keystores and truststores will be stored
 mkdir -p /tmp/kafka/clusters
@@ -75,11 +75,6 @@ if [ -n "$KAFKA_MIRRORMAKER_2_CLUSTERS" ]; then
     done
     echo "Preparing MirrorMaker 2 cluster truststores is complete"
 fi
-
-# Generate and print the connector config file
-echo "Creating connector configuration:"
-./kafka_mirror_maker_2_connector_config_generator.sh | tee /tmp/strimzi-mirrormaker2-connector.properties | sed -e 's/sasl.jaas.config=.*/sasl.jaas.config=[hidden]/g' -e 's/password=.*/password=[hidden]/g'
-echo ""
 
 if [ -n "$STRIMZI_JAVA_SYSTEM_PROPERTIES" ]; then
     export KAFKA_OPTS="${KAFKA_OPTS} ${STRIMZI_JAVA_SYSTEM_PROPERTIES}"
