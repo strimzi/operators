@@ -118,7 +118,7 @@ prepare:
       # Setup local registry for building images and connect image
       export DOCKER_REGISTRY="${HOST}:5001"
       export DOCKER_ORG="strimzi"
-      export DOCKER_TAG="test"
+      export DOCKER_TAG="latest"
 
       make java_install
 

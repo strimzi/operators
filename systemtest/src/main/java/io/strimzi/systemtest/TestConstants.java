@@ -333,4 +333,10 @@ public interface TestConstants {
     String MIXED_ROLE_PREFIX = "m-";
     String BROKER_ROLE_PREFIX = "b-";
     String CONTROLLER_ROLE_PREFIX = "c-";
+
+    /**
+     * Container runtime constants
+     */
+    String DOCKER = "docker";
+    String PODMAN = "podman";
 }
