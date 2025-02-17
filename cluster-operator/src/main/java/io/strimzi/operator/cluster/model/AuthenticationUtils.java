@@ -286,6 +286,9 @@ public class AuthenticationUtils {
                 if (oauth.getPasswordSecret() != null) {
                     varList.add(ContainerUtils.createEnvVarFromSecret(envVarNamer.apply("OAUTH_PASSWORD_GRANT_PASSWORD"), oauth.getPasswordSecret().getSecretName(), oauth.getPasswordSecret().getPassword()));
                 }
+                if (oauth.getCustomOauthCallbackClass() != null) {
+                    varList.add(ContainerUtils.createEnvVar(KafkaConnectCluster.ENV_VAR_CUSTOM_OAUTH_CALLBACK_CLASS, oauth.getCustomOauthCallbackClass()));
+                }
 
                 if (oauth.getTlsTrustedCertificates() != null && !oauth.getTlsTrustedCertificates().isEmpty()) {
                     varList.add(ContainerUtils.createEnvVar(envVarNamer.apply("OAUTH_TRUSTED_CERTS"), CertUtils.trustedCertsEnvVar(oauth.getTlsTrustedCertificates())));

@@ -121,6 +121,7 @@ public class KafkaConnectCluster extends AbstractModel implements SupportsMetric
     protected static final String ENV_VAR_KAFKA_CONNECT_OAUTH_REFRESH_TOKEN = "KAFKA_CONNECT_OAUTH_REFRESH_TOKEN";
     protected static final String ENV_VAR_KAFKA_CONNECT_OAUTH_PASSWORD_GRANT_PASSWORD = "KAFKA_CONNECT_OAUTH_PASSWORD_GRANT_PASSWORD";
     protected static final String ENV_VAR_KAFKA_CONNECT_OAUTH_CLIENT_ASSERTION = "KAFKA_CONNECT_OAUTH_CLIENT_ASSERTION";
+    protected static final String ENV_VAR_CUSTOM_OAUTH_CALLBACK_CLASS = "CUSTOM_OAUTH_CALLBACK_CLASS";
     protected static final String ENV_VAR_STRIMZI_TRACING = "STRIMZI_TRACING";
 
     protected static final String CO_ENV_VAR_CUSTOM_CONNECT_POD_LABELS = "STRIMZI_CUSTOM_KAFKA_CONNECT_LABELS";

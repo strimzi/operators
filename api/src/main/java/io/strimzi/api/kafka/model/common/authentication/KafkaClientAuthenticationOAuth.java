@@ -32,7 +32,7 @@ import java.util.Map;
     "readTimeoutSeconds", "httpRetries", "httpRetryPauseMs", "clientSecret", "passwordSecret", "accessToken",
     "refreshToken", "tlsTrustedCertificates", "disableTlsHostnameVerification", "maxTokenExpirySeconds",
     "accessTokenIsJwt", "enableMetrics", "includeAcceptHeader", "accessTokenLocation",
-    "clientAssertion", "clientAssertionLocation", "clientAssertionType", "saslExtensions"})
+    "clientAssertion", "clientAssertionLocation", "clientAssertionType", "saslExtensions", "customOauthCallbackClass"})
 @EqualsAndHashCode(callSuper = true)
 @ToString(callSuper = true)
 public class KafkaClientAuthenticationOAuth extends KafkaClientAuthentication {
@@ -62,6 +62,7 @@ public class KafkaClientAuthenticationOAuth extends KafkaClientAuthentication {
     private String clientAssertionLocation;
     private String clientAssertionType;
     private Map<String, String> saslExtensions;
+    private String customOauthCallbackClass;
 
     @Description("Must be `" + TYPE_OAUTH + "`")
     @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -313,5 +314,15 @@ public class KafkaClientAuthenticationOAuth extends KafkaClientAuthentication {
 
     public void setSaslExtensions(Map<String, String> saslExtensions) {
         this.saslExtensions = saslExtensions;
+    }
+
+    @Description("Custom oauth callback class. If not set, this value defaults to `io.strimzi.kafka.oauth.client.JaasClientOauthLoginCallbackHandler`.")
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public String getCustomOauthCallbackClass() {
+        return customOauthCallbackClass;
+    }
+
+    public void setCustomOauthCallbackClass(String customOauthCallbackClass) {
+        this.customOauthCallbackClass = customOauthCallbackClass;
     }
 }

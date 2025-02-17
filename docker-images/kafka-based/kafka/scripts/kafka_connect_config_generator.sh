@@ -94,6 +94,10 @@ if [ -n "$KAFKA_CONNECT_SASL_MECHANISM" ]; then
         SASL_MECHANISM="OAUTHBEARER"
         JAAS_CONFIG="org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginModule required ${KAFKA_CONNECT_OAUTH_CONFIG} ${OAUTH_CLIENT_SECRET} ${OAUTH_REFRESH_TOKEN} ${OAUTH_ACCESS_TOKEN} ${OAUTH_PASSWORD_GRANT_PASSWORD} ${OAUTH_CLIENT_ASSERTION} ${OAUTH_TRUSTSTORE};"
         OAUTH_CALLBACK_CLASS="sasl.login.callback.handler.class=io.strimzi.kafka.oauth.client.JaasClientOauthLoginCallbackHandler"
+        if [ -n "$CUSTOM_OAUTH_CALLBACK_CLASS" ]; then
+            JAAS_CONFIG="org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginModule required;"
+            OAUTH_CALLBACK_CLASS="sasl.login.callback.handler.class=${CUSTOM_OAUTH_CALLBACK_CLASS}"
+        fi
         OAUTH_CALLBACK_CLASS_PRODUCER="producer.${OAUTH_CALLBACK_CLASS}"
         OAUTH_CALLBACK_CLASS_CONSUMER="consumer.${OAUTH_CALLBACK_CLASS}"
         OAUTH_CALLBACK_CLASS_ADMIN="admin.${OAUTH_CALLBACK_CLASS}"
