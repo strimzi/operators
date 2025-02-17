@@ -34,17 +34,12 @@ import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.AlterConfigOp;
 import org.apache.kafka.clients.admin.AlterConfigsResult;
 import org.apache.kafka.clients.admin.Config;
-import org.apache.kafka.clients.admin.DescribeClusterResult;
 import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.common.KafkaFuture;
-import org.apache.kafka.common.Node;
 import org.apache.kafka.common.config.ConfigException;
 import org.apache.kafka.common.config.ConfigResource;
 import org.apache.kafka.common.errors.SslAuthenticationException;
 
-import java.io.IOException;
-import java.net.InetSocketAddress;
-import java.net.Socket;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -461,7 +456,7 @@ public class KafkaRoller {
                 LOGGER.debugCr(reconciliation, "Pod {} can be rolled now", nodeRef);
                 restartAndAwaitReadiness(pod, operationTimeoutMs, TimeUnit.MILLISECONDS, restartContext);
             } else if (restartContext.needsRestart || restartContext.needsReconfig) {
-                if (deferController(nodeRef, restartContext)) {
+                if (isController && deferController(nodeRef, restartContext)) {
                     LOGGER.debugCr(reconciliation, "Pod {} is the active controller and there are other pods to verify first.", nodeRef);
                     throw new ForceableProblem("Pod " + nodeRef.podName() + " is the active controller and there are other pods to verify first");
                 } else if (!canRoll(nodeRef.nodeId(), isController, isBroker, 60, TimeUnit.SECONDS, false, restartContext)) {
@@ -940,7 +935,7 @@ public class KafkaRoller {
     }
     
     /**
-     * Return true if the given {@code nodeId} is the controller or the active controller in KRaft case and there are other brokers we might yet have to consider.
+     * Return true if the given {@code nodeId} is the active controller and there are other controllers we might yet have to consider.
      * This ensures that the active controller is restarted/reconfigured last.
      */
     private boolean deferController(NodeRef nodeRef, RestartContext restartContext) throws Exception {
@@ -955,76 +950,17 @@ public class KafkaRoller {
     }
 
     /**
-     * Completes the returned future <strong>on the context thread</strong> with the id of the controller of the cluster
-     * or the active controller when running in KRaft mode.
+     * Completes the returned future <strong>on the context thread</strong> with the id of the active controller.
      * This will be -1 if there is not currently a controller.
      *
      * @return A future which completes the node id of the controller of the cluster, or -1 if there is not currently a controller.
      */
     @SuppressFBWarnings("RCN_REDUNDANT_NULLCHECK_WOULD_HAVE_BEEN_A_NPE") // seems to be completely spurious
     int controller(NodeRef nodeRef, long timeout, TimeUnit unit, RestartContext restartContext) throws Exception {
-        int id;
-        if (nodeRef.controller()) {
-            id = await(restartContext.quorumCheck.quorumLeaderId(), timeout, unit,
-                    t -> new UnforceableProblem("An error while trying to determine the quorum leader id", t));
-            LOGGER.debugCr(reconciliation, "KRaft active controller is {}", id);
-        } else {
-            // TODO Either this is a KRaft broker or ZooKeeper broker. Since KafkaRoller does not know if this is KRaft mode or
-            //      not continue with describeCluster. In KRaft mode this returns a random broker and will mean this broker is deferred.
-            //      In future this can be improved by telling KafkaRoller whether the cluster is in KRaft mode or not.
-            //      This is tracked in https://github.com/strimzi/strimzi-kafka-operator/issues/9373.
-            // Use admin client connected directly to this broker here, then any exception or timeout trying to connect to
-            // the current node will be caught and handled from this method, rather than appearing elsewhere.
-            try (Admin ac = adminClient(Set.of(nodeRef), false)) {
-                Node controllerNode = null;
-
-                try {
-                    DescribeClusterResult describeClusterResult = ac.describeCluster();
-                    KafkaFuture<Node> controller = describeClusterResult.controller();
-                    controllerNode = controller.get(timeout, unit);
-                    restartContext.clearConnectionError();
-                } catch (ExecutionException | TimeoutException e) {
-                    maybeTcpProbe(nodeRef, e, restartContext);
-                }
-
-                id = controllerNode == null || Node.noNode().equals(controllerNode) ? -1 : controllerNode.id();
-                LOGGER.debugCr(reconciliation, "Controller is {} (only relevant for Zookeeper mode)", id);
-            }
-        }
+        int id = await(restartContext.quorumCheck.quorumLeaderId(), timeout, unit,
+                t -> new UnforceableProblem("An error while trying to determine the quorum leader id", t));
+        LOGGER.debugCr(reconciliation, "Active controller is {}", id);
         return id;
-    }
-
-    /**
-     * If we've already had trouble connecting to this broker try to probe whether the connection is
-     * open on the broker; if it's not then maybe throw a ForceableProblem to immediately force a restart.
-     * This is an optimization for brokers which don't seem to be running.
-     */
-    private void maybeTcpProbe(NodeRef nodeRef, Exception executionException, RestartContext restartContext) throws Exception {
-        if (restartContext.connectionError() + nodes.size() * 120_000L >= System.currentTimeMillis()) {
-            try {
-                LOGGER.debugCr(reconciliation, "Probing TCP port due to previous problems connecting to pod {}", nodeRef);
-                // do a tcp connect and close (with a short connect timeout)
-                tcpProbe(DnsNameGenerator.podDnsName(namespace, KafkaResources.brokersServiceName(cluster), nodeRef.podName()), KafkaCluster.REPLICATION_PORT);
-            } catch (IOException connectionException) {
-                throw new ForceableProblem("Unable to connect to " + nodeRef.podName() + ":" + KafkaCluster.REPLICATION_PORT, executionException.getCause(), true);
-            }
-            throw executionException;
-        } else {
-            restartContext.noteConnectionError();
-            throw new ForceableProblem("Error while trying to determine the cluster controller from pod " + nodeRef.podName(), executionException.getCause());
-        }
-    }
-
-    /**
-     * Tries to open and close a TCP connection to the given host and port.
-     * @param hostname The host
-     * @param port The port
-     * @throws IOException if anything went wrong.
-     */
-    /*test*/ void tcpProbe(String hostname, int port) throws IOException {
-        try (Socket socket = new Socket()) {
-            socket.connect(new InetSocketAddress(hostname, port), 5_000);
-        }
     }
 
     @Override
